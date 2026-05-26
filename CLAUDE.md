@@ -20,4 +20,4 @@
 - **Frontend:** `npm run lint:check && npm run types:check` — must pass before considering frontend work done.
 
 ## Plan Tracking
-- After completing a build order step, update the plan file at `/Users/nick/.claude/plans/purrfect-churning-planet.md` — mark the step complete and note anything that diverged from the original design.
+- After completing a build order step, update the plan file at `PROJECT_PLAN.md` — mark the step complete and note anything that diverged from the original design.
