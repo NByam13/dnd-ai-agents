@@ -138,13 +138,13 @@ Human-led mob programming throughout. AI tools assist with boilerplate and looku
    - Note: DB is pgsql, `.env` pre-configured for DBngin on 127.0.0.1:5432, db name `dnd_ai_agents` — user needs to create that database in DBngin before running migrations.
 
 ### Phase 2 — Database Schema
-5. Write and run migration for `campaigns` table (id, world_description, timestamps)
-5. Write and run migration for `game_sessions` (id, campaign_id, synopsis, timestamps)
-6. Write and run migration for `characters` (id, campaign_id, name, race, class, stats JSON, is_agent)
-7. Write and run migration for `agent_contexts` (id, session_id, character_id, agent_role, messages JSON, token_count, system_prompt)
-8. Write and run migration for `journal_entries` (id, session_id, agent_role, summary, turn_number, timestamps)
-9. Write and run migration for `turn_messages` (id, session_id, speaker, content, token_count, turn_number)
-10. Create Eloquent models + relationships for all five tables
+5. ✅ Write migration for `campaigns` table (id, world_description, timestamps)
+5. ✅ Write migration for `game_sessions` (id, campaign_id, synopsis, timestamps)
+6. ✅ Write migration for `characters` (id, campaign_id, name, race, class, stats JSON, is_agent)
+7. ✅ Write migration for `agent_contexts` (id, game_session_id, character_id, agent_role, messages JSON, token_count, system_prompt) — FK named `game_session_id` to follow Laravel convention against the `game_sessions` table.
+8. ✅ Write migration for `journal_entries` (id, game_session_id, agent_role, summary, turn_number, timestamps)
+9. ✅ Write migration for `turn_messages` (id, game_session_id, speaker, content, token_count, turn_number)
+10. ✅ Create Eloquent models + relationships for all six tables (Campaign, GameSession, Character, AgentContext, JournalEntry, TurnMessage) with fillable + casts (`stats`/`messages` → array, `is_agent` → bool) and matching belongsTo/hasMany relations.
 
 ### Phase 3 — Anthropic Service Layer
 11. Write `AnthropicClient` service — wraps the SDK, sends a message array, returns content + token counts
