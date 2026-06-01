@@ -138,9 +138,10 @@ Human-led mob programming throughout. AI tools assist with boilerplate and looku
    - Note: DB is pgsql, `.env` pre-configured for DBngin on 127.0.0.1:5432, db name `dnd_ai_agents` — user needs to create that database in DBngin before running migrations.
 
 ### Phase 2 — Database Schema
-5. Write and run migration for `game_sessions` (id, status, world_description, timestamps)
-6. Write and run migration for `characters` (id, session_id, name, race, class, stats JSON, is_player, is_agent)
-7. Write and run migration for `agent_contexts` (id, session_id, agent_role, messages JSON, token_count, system_prompt)
+5. Write and run migration for `campaigns` table (id, world_description, timestamps)
+5. Write and run migration for `game_sessions` (id, campaign_id, synopsis, timestamps)
+6. Write and run migration for `characters` (id, campaign_id, name, race, class, stats JSON, is_agent)
+7. Write and run migration for `agent_contexts` (id, session_id, character_id, agent_role, messages JSON, token_count, system_prompt)
 8. Write and run migration for `journal_entries` (id, session_id, agent_role, summary, turn_number, timestamps)
 9. Write and run migration for `turn_messages` (id, session_id, speaker, content, token_count, turn_number)
 10. Create Eloquent models + relationships for all five tables
