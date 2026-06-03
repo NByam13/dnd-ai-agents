@@ -6,10 +6,10 @@ export default function Welcome() {
             <Head title="Welcome to the Dungeon" />
             <div className="flex min-h-screen flex-col items-center bg-[#FDFDFC] p-6 lg:justify-center lg:p-8 dark:bg-[#0a0a0a]">
                 <div className="flex w-full items-center justify-center opacity-100 transition-opacity duration-750 lg:grow starting:opacity-0">
-                    <div className="flex flex-col items-center justify-center gap-4 text-center text-white">
+                    <div className="flex flex-col items-center justify-center gap-4 text-center text-white w-1/2">
                         <div>Welcome to dungeons and dragons!</div>
-                        <div>
-                            <Form action={'/campaign/store'} method="post">
+                        <div className={"w-full"}>
+                            <Form action={'/campaign/store'} method="post" className={"flex flex-col gap-2 w-full text-center"}>
                                 <input
                                     type="text"
                                     name={"name"}
