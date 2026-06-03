@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Campaign extends Model
 {
     protected $fillable = [
+        'name',
         'world_description',
     ];
 

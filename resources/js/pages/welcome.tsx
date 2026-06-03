@@ -9,14 +9,20 @@ export default function Welcome() {
                     <div className="flex flex-col items-center justify-center gap-4 text-center text-white">
                         <div>Welcome to dungeons and dragons!</div>
                         <div>
-                            <Form action={'/campaign/create'} method="post">
+                            <Form action={'/campaign/store'} method="post">
                                 <input
                                     type="text"
+                                    name={"name"}
                                     placeholder="Enter your campaign name"
                                     className="rounded-lg border border-white px-4 py-2"
                                 />
+                                <textarea
+                                    name={"world_description"}
+                                    placeholder="Optional seed phrase to kickstart your adventure"
+                                    className="rounded-lg border border-white px-4 py-2"
+                                />
                                 <button
-                                    type={"submit"}
+                                    type={'submit'}
                                     data-testid="new-game-button"
                                     className={
                                         'rounded-lg border border-white px-4 py-2'
