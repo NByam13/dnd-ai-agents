@@ -1,3 +1,5 @@
+/// <reference types="vitest/config" />
+
 import inertia from '@inertiajs/vite';
 import { wayfinder } from '@laravel/vite-plugin-wayfinder';
 import tailwindcss from '@tailwindcss/vite';
@@ -34,4 +36,8 @@ export default defineConfig({
             formVariants: true,
         }),
     ],
+    test: {
+        environment: 'jsdom',
+        globals: true,
+    },
 });
