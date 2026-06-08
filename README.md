@@ -87,7 +87,7 @@ React Frontend (Inertia)
 
 - PHP 8.5+
 - Composer
-- Node.js 22+
+- Node.js 24+
 - PostgreSQL
 
 ### Setup
@@ -97,7 +97,7 @@ git clone <repo-url>
 cd dnd-ai-agents
 
 composer install
-npm install
+npm ci
 
 cp .env.example .env
 php artisan key:generate
@@ -115,6 +115,14 @@ ANTHROPIC_API_KEY=sk-ant-...
 php artisan migrate
 npm run build
 php artisan serve
+```
+
+### Alternative Setup
+
+```bash
+sail up -d
+sail artisan migrate
+npm run dev
 ```
 
 ### Running Tests

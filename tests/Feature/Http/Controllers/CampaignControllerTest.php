@@ -2,6 +2,7 @@
 
 namespace Tests\Http\Controllers;
 
+use App\Models\Campaign;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
@@ -16,6 +17,7 @@ class CampaignControllerTest extends TestCase
 
         $this->assertDatabaseHas('campaigns', $payload);
 
-        $response->assertRedirect(route('campaign.show', ['campaign' => 1]));
+        $latestCampaign = Campaign::query()->latest()->first();
+        $response->assertRedirect(route('campaign.show', ['campaign' => $latestCampaign->id]));
     }
 }
