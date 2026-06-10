@@ -12,9 +12,7 @@ class CampaignController extends Controller
     {
         $campaign = Campaign::create($request->validated());
 
-        return to_route(route('campaign.show', $campaign ), [
-            'campaign' => $campaign,
-        ]);
+        return to_route('campaign.show', ['campaign' => $campaign]);
     }
 
     public function show(Campaign $campaign)
