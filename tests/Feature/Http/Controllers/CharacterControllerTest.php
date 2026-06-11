@@ -1,0 +1,126 @@
+<?php
+
+namespace Tests\Http\Controllers;
+
+use App\Models\Campaign;
+use App\Models\Character;
+use PHPUnit\Framework\Attributes\Test;
+use Tests\TestCase;
+
+class CharacterControllerTest extends TestCase
+{
+
+    // TODO: Come back here to clean up the tests.
+    private function campaign(): Campaign
+    {
+        return Campaign::create([
+            'name' => 'Test Campaign',
+            'world_description' => 'A test world',
+        ]);
+    }
+
+    #[Test]
+    public function will_create_a_new_character_for_the_campaign(): void
+    {
+        $campaign = $this->campaign();
+
+        $response = $this->post(route('character.store', ['campaign' => $campaign]), [
+            'name' => 'Grog',
+            'race' => 'Half-Orc',
+            'class' => 'barbarian',
+        ]);
+
+        $this->assertDatabaseHas('characters', [
+            'campaign_id' => $campaign->id,
+            'name' => 'Grog',
+            'race' => 'Half-Orc',
+            'class' => 'barbarian',
+            'is_agent' => false,
+        ]);
+
+        $response->assertRedirect(route('campaign.show', ['campaign' => $campaign]));
+    }
+
+    #[Test]
+    public function fills_the_stats_with_the_class_default_stat_block(): void
+    {
+        $campaign = $this->campaign();
+
+        $this->post(route('character.store', ['campaign' => $campaign]), [
+            'name' => 'Grog',
+            'race' => 'Half-Orc',
+            'class' => 'barbarian',
+        ]);
+
+        // Barbarian: high STR, low INT.
+        $this->assertSame([
+            'str' => 15,
+            'dex' => 13,
+            'con' => 14,
+            'int' => 8,
+            'wis' => 12,
+            'cha' => 10,
+        ], Character::query()->latest('id')->first()->stats);
+    }
+
+    #[Test]
+    public function derives_a_distinct_stat_block_per_class(): void
+    {
+        $campaign = $this->campaign();
+
+        $this->post(route('character.store', ['campaign' => $campaign]), [
+            'name' => 'Merlin',
+            'race' => 'Elf',
+            'class' => 'wizard',
+        ]);
+
+        $wizard = Character::query()->latest('id')->first();
+
+        // Wizard: high INT, low STR — the mirror image of the barbarian.
+        $this->assertSame(15, $wizard->stats['int']);
+        $this->assertSame(8, $wizard->stats['str']);
+    }
+
+    #[Test]
+    public function the_client_cannot_override_the_stat_block(): void
+    {
+        $campaign = $this->campaign();
+
+        $this->post(route('character.store', ['campaign' => $campaign]), [
+            'name' => 'Cheater',
+            'race' => 'Human',
+            'class' => 'wizard',
+            'stats' => ['str' => 20, 'dex' => 20, 'con' => 20, 'int' => 20, 'wis' => 20, 'cha' => 20],
+        ]);
+
+        $character = Character::query()->latest('id')->first();
+
+        $this->assertSame(8, $character->stats['str']);
+    }
+
+    #[Test]
+    public function rejects_an_unknown_class(): void
+    {
+        $campaign = $this->campaign();
+
+        $response = $this->post(route('character.store', ['campaign' => $campaign]), [
+            'name' => 'Nobody',
+            'race' => 'Human',
+            'class' => 'kobold-wrangler',
+        ]);
+
+        $response->assertSessionHasErrors('class');
+        $this->assertDatabaseCount('characters', 0);
+    }
+
+    #[Test]
+    public function requires_a_name_race_and_class(): void
+    {
+        $campaign = $this->campaign();
+
+        $response = $this->post(route('character.store', ['campaign' => $campaign]), []);
+
+        $response->assertSessionHasErrors(['name', 'race', 'class']);
+        $this->assertDatabaseCount('characters', 0);
+    }
+}

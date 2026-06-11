@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\CharacterClass;
 use App\Http\Requests\CreateCampaignRequest;
 use App\Models\Campaign;
 use Inertia\Inertia;
@@ -17,6 +18,9 @@ class CampaignController extends Controller
 
     public function show(Campaign $campaign)
     {
-        return Inertia::render('Campaign/Show', [$campaign]);
+        return Inertia::render('campaign/show', [
+            'campaign' => $campaign,
+            'characterClasses' => CharacterClass::options(),
+        ]);
     }
 }
