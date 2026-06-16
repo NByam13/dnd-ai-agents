@@ -74,7 +74,7 @@ class CharacterControllerTest extends TestCase
             'class' => 'wizard',
         ]);
 
-        $wizard = Character::query()->latest('id')->first();
+        $wizard = Character::query()->first();
 
         // Wizard: high INT, low STR — the mirror image of the barbarian.
         $this->assertSame(15, $wizard->stats['int']);
@@ -93,7 +93,7 @@ class CharacterControllerTest extends TestCase
             'stats' => ['str' => 20, 'dex' => 20, 'con' => 20, 'int' => 20, 'wis' => 20, 'cha' => 20],
         ]);
 
-        $character = Character::query()->latest('id')->first();
+        $character = Character::query()->first();
 
         $this->assertSame(8, $character->stats['str']);
     }

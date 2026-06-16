@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\CharacterClass;
 use App\Http\Requests\CreateCharacterRequest;
 use App\Models\Campaign;
+use App\Models\Character;
 
 class CharacterController extends Controller
 {
@@ -28,26 +29,6 @@ class CharacterController extends Controller
 
     private function createAccompanyingCharacters(Campaign $campaign)
     {
-        $class1 = CharacterClass::from('barbarian');
-
-        $campaign->characters()->create([
-            'name' => 'Grog',
-            'race' => 'Orc',
-            'class' => $class1->value,
-            'stats' => $class1->statBlock(),
-            'is_agent' => true,
-        ]
-        );
-
-        $class2 = CharacterClass::from('wizard');
-
-        $campaign->characters()->create([
-            'name' => 'Nick Byam',
-            'race' => 'Gnome',
-            'class' => $class2->value,
-            'stats' => $class2->statBlock(),
-            'is_agent' => true,
-        ]
-        );
+        Character::factory(2)->for($campaign)->isAgent()->create();
     }
 }

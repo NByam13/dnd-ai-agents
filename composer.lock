@@ -4,8 +4,55 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "e798f56a64d796e211aec27d3d4379c0",
+    "content-hash": "bb95e73d26f5d82dfe91be4271d321e7",
     "packages": [
+        {
+            "name": "andreasindal/rpgfaker",
+            "version": "v1.1.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/andreasindal/rpgfaker.git",
+                "reference": "1c7a89eecdb072ba7d680d2b7ff35717bbfc70af"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/andreasindal/rpgfaker/zipball/1c7a89eecdb072ba7d680d2b7ff35717bbfc70af",
+                "reference": "1c7a89eecdb072ba7d680d2b7ff35717bbfc70af",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=5.6.0"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "RPGFaker\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Andreas Indal",
+                    "email": "andreas@rocketship.se"
+                }
+            ],
+            "description": "RPGFaker is a library to generate names for your fantasy games.",
+            "keywords": [
+                "faker",
+                "fantasy",
+                "generator",
+                "name",
+                "rpg"
+            ],
+            "support": {
+                "issues": "https://github.com/andreasindal/rpgfaker/issues",
+                "source": "https://github.com/andreasindal/rpgfaker/tree/master"
+            },
+            "time": "2017-05-12T07:26:34+00:00"
+        },
         {
             "name": "aws/aws-crt-php",
             "version": "v1.2.7",
