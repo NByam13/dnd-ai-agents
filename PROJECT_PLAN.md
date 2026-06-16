@@ -1,7 +1,9 @@
 # DnD AI Agents — Project Plan
 
 ## Context
-A mob-programming workshop for junior developers at Vehikl. The project is a 1-player D&D game backed by 3 AI agents (1 DM + 2 NPC party members) that teaches how AI context windows work, how separate agent contexts diverge, how orchestration routes messages, and how "travel journal" summarisation compresses context between sessions. Lives at `/Users/nick/Code/Vehikl/dnd-ai-agents`.
+A mob-programming workshop for junior developers at Vehikl. The project is a 1-player D&D game backed by 3 AI agents (1 DM + 2 NPC party members) that teaches how AI context windows work, how separate agent contexts diverge, how orchestration routes messages, and how "travel journal" summarisation compresses context between sessions.
+
+**Where we are (2026-06-16):** The player can create their own hero (name + race + class → stats). The next leg of work spawns the two AI party members with a *randomised* class (and the class's fixed stat block), generates each one an AI-written backstory at spawn, and stands up the `GameSession` + agent contexts that the agents will reason from. That's the "game resources" foundation everything else builds on.
 
 ---
 
@@ -12,10 +14,13 @@ A mob-programming workshop for junior developers at Vehikl. The project is a 1-p
 | Teaching goals | Context windows filling up; separate agent contexts; orchestration patterns; prompt engineering; travel journal / lore summary context compression |
 | Session format | Mob programming (rotating driver → navigator) on shared remote desktop |
 | Tech stack | Laravel (PHP) + Inertia.js + React + TypeScript |
-| LLM provider | Anthropic Claude (Sonnet for DM, Haiku for NPCs) |
+| LLM integration | **`laravel/ai` package (v0.7.2)** with Anthropic as the default provider — NOT a hand-rolled SDK wrapper. Agents live in `app/Ai/Agents/`. |
 | Turn model | DM sets scene → Human acts or passes → NPCs react → NPCs can chain react once |
 | Context inspector | Token counter + message history + journal snapshots + system prompt viewer |
-| Game world | Save files: load existing OR start new (player-built character, optional setting notes, randomised NPC party) |
+| Game world | Player-built hero + randomised AI party + optional world description seed |
+| Campaign vs. session | A `Campaign` can be planned with nobody at the table. A `GameSession` **cannot begin until every player has a character** — the human's hero AND both AI party members. So completing character creation ("Begin the Adventure") is the moment the first `GameSession` starts and agent contexts are seeded. |
+| Player character | Player chooses race + class; stats derived from the class's fixed stat block |
+| AI party members | Created automatically when the player submits their hero. **Random class, class's fixed stat block.** Each gets an AI-generated backstory at spawn. |
 | Dice mechanics | Lightweight d20 + proficiency modifier; build on later |
 | Persistence | DB with journal summaries; loading a save demonstrates context compression |
 | Deployment | Local dev, shared screen |
@@ -26,196 +31,186 @@ A mob-programming workshop for junior developers at Vehikl. The project is a 1-p
 
 ```
 Laravel Backend
-├── Eloquent Models
-│   ├── GameSession      (id, status, world_description, created_at)
-│   ├── Character        (id, session_id, name, race, class, stats JSON, is_player, is_agent)
-│   ├── AgentContext     (id, session_id, agent_role, messages JSON, token_count, system_prompt)
-│   ├── JournalEntry     (id, session_id, agent_role, summary, turn_number, created_at)
-│   └── TurnMessage      (id, session_id, speaker, content, token_count, turn_number)
+├── Eloquent Models  (all built ✅)
+│   ├── Campaign         (id, name, world_description, timestamps)
+│   ├── GameSession      (id, campaign_id, synopsis, timestamps)
+│   ├── Character        (id, campaign_id, name, race, class, stats JSON, is_agent[, backstory])
+│   ├── AgentContext     (id, game_session_id, character_id, agent_role, messages JSON, token_count, system_prompt)
+│   ├── JournalEntry     (id, game_session_id, agent_role, summary, turn_number, timestamps)
+│   └── TurnMessage      (id, game_session_id, speaker, content, token_count, turn_number)
 │
-├── Services
-│   ├── AnthropicClient          (wrapper around Anthropic PHP SDK)
-│   ├── DmAgentService           (world narration, result adjudication, journal compression)
-│   ├── NpcAgentService          (character-voiced reactions and actions)
-│   ├── TurnOrchestrator         (drives the turn sequence, dispatches agent calls)
-│   ├── ContextManager           (tracks token counts, triggers journal compression at threshold)
-│   └── DiceService              (d20 rolls + proficiency modifier)
+├── Enums
+│   └── CharacterClass   (Fighter, Barbarian, Paladin, Rogue, Wizard, Cleric, Bard, Warlock)
+│                         → label(), statBlock(), options()
 │
-└── HTTP / Inertia
-    ├── GameSessionController
-    ├── CharacterController
-    └── TurnController           (POST /turn → drives one full turn, streams responses)
+├── AI Layer  (laravel/ai — app/Ai/Agents/)
+│   ├── DungeonMasterAgent   (scaffolded; world narration, result adjudication, journal compression)
+│   ├── NpcAgent / PartyMemberAgent  (character-voiced reactions + actions; built from a Character)
+│   └── conversation persistence via laravel/ai's agent_conversations tables
+│
+├── HTTP / Inertia
+│   ├── CampaignController       (store, show)   ✅
+│   ├── CharacterController      (store)          ✅ player; → spawns AI party next
+│   └── TurnController           (POST /turn → drives one full turn)   [later]
+│
+└── Services (as needed, thin)
+    ├── TurnOrchestrator     (drives the turn sequence, dispatches agent calls)   [later]
+    ├── ContextManager       (tracks token counts, triggers journal compression)  [later]
+    └── DiceService          (d20 rolls + proficiency modifier)                    [later]
 
 React Frontend (Inertia)
 ├── Pages
-│   ├── Home                     (load save / new game)
-│   ├── CharacterCreation        (race, class, proficiencies, stat distribution)
-│   └── Game                     (split-pane: game chat + context inspector)
+│   ├── welcome.tsx              ✅ new campaign (name + world_description)
+│   ├── campaign/show.tsx        ✅ character creation (name, race, class, live stat preview)
+│   └── Game                     [later] split-pane: game chat + context inspector
 │
 └── Components
-    ├── GameChat                 (DM narration, NPC dialogue, player input, turn controls)
-    ├── TurnControls             (Act / Pass to NPC1 / Pass to NPC2)
-    ├── ContextInspector         (tabbed: DM | NPC1 | NPC2)
-    │   ├── TokenMeter           (live progress bar vs model limit)
-    │   ├── MessageHistory       (collapsible message array)
-    │   ├── JournalSnapshot      (compressed summary injected at load)
-    │   └── SystemPromptViewer   (read-only display of agent's system prompt)
-    └── CharacterCard            (race, class, HP, stats summary)
+    ├── CharacterCard            party member display (race, class, stats, backstory)
+    ├── GameChat / TurnControls  [later]
+    └── ContextInspector + TokenMeter / MessageHistory / JournalSnapshot / SystemPromptViewer  [later]
 ```
+
+> **Note — we are NOT building a custom `AnthropicClient`.** The old plan assumed a hand-rolled SDK wrapper plus `DmAgentService` / `NpcAgentService`. The project already standardises on `laravel/ai`: configure agents as `Laravel\Ai\Contracts\Agent` classes under `app/Ai/Agents/`, let the package handle the Anthropic call + token accounting + conversation persistence.
 
 ---
 
-## Turn Flow
+## Turn Flow (target — built in a later phase)
 
 ```
 1.  DM agent called → narrates scene / result
 2.  Player prompt: [Act] [Pass → NPC1] [Pass → NPC2]
-    │
-    ├── Player Acts:
-    │     Player submits action text
-    │     → DiceService.roll() if action requires check
-    │     → DM agent adjudicates + narrates result
-    │     → NPC1 reaction call   (system: "react briefly, ≤2 sentences, no new threads")
-    │     → NPC2 chain-reaction  (system: "react to NPC1 if relevant, ≤2 sentences")
-    │     → back to step 2
-    │
-    └── Player Passes to NPC:
-          Designated NPC takes full action call
-          → DM narrates result
-          → Other NPC reaction call (once)
-          → back to step 2
+    ├── Player Acts:  DiceService.roll() if needed → DM adjudicates → NPC1 reacts → NPC2 chain-reacts → back to 2
+    └── Player Passes: designated NPC acts → DM narrates → other NPC reacts once → back to 2
 ```
 
 ---
 
-## Context Management (Teaching Centrepiece)
+## Context Management (Teaching Centrepiece — later phase)
 
-- Every API response → `ContextManager` updates `AgentContext.token_count` for that agent.
-- **Compression threshold**: when an agent's context reaches ~70% of model limit, `ContextManager` triggers a journal compression:
-  1. Sends full message history to Claude with prompt: *"Summarise these events in 3–5 sentences from [agent]'s perspective."*
-  2. Saves result as a `JournalEntry`.
-  3. Clears the long `messages` array; inserts the summary as a leading system message in the next call.
-- **Session load**: injects the latest `JournalEntry` as context prefix — students see that loading a save = loading a compressed snapshot.
-- **Inspector**: token meter visually shows the fill, and the journal snapshot tab shows the compressed output — the "before/after" is the teaching moment.
+- Every API response → update `AgentContext.token_count` for that agent.
+- **Compression threshold:** at ~70% of model limit, summarise the message history into a `JournalEntry` ("Summarise these events in 3–5 sentences from [agent]'s perspective."), clear the long `messages` array, inject the summary as a leading system message next call.
+- **Session load:** inject latest `JournalEntry` as context prefix — loading a save = loading a compressed snapshot.
+- **Inspector:** token meter shows the fill; journal tab shows the compressed output — the before/after is the teaching moment.
 
 ---
 
 ## Character Creation
 
-**Player character:**
-- Choose race (Human, Elf, Dwarf, Halfling, Half-Orc, Gnome, Tiefling, Dragonborn)
-- Choose class (Fighter, Wizard, Rogue, Cleric, Ranger, Paladin, Bard, Druid)
-- Distribute ability scores (point-buy or standard array)
-- Select class proficiencies
+**Player hero (built ✅):**
+- Choose race (Human, Elf, Dwarf, Halfling, Half-Orc, Tiefling, Dragonborn, Gnome)
+- Choose class (8 `CharacterClass` cases) → stats come from the class's fixed `statBlock()`
+- Live stat-block preview; "Begin the Adventure" submits
 
-**NPC party members (default):**
-- Race + class + stats randomised on session creation
-- Player can optionally customise before starting
+**AI party members (next):**
+- Two of them, `is_agent = true`, created automatically when the player submits.
+- **Random class**, using that class's fixed `statBlock()`. Random race.
+- Each gets an AI-generated backstory at spawn, derived from race/class/stats.
 
-**New game optional inputs:**
-- Setting notes (e.g. "dark gothic horror", "high seas adventure") → fed to DM as world generation context
+**New game inputs (built ✅):** optional `world_description` seed on the welcome page → later fed to the DM as world-generation context.
 
 ---
 
-## Dice Mechanics (Lightweight v1)
-
-- `DiceService::roll(int $sides = 20): int` — PHP random
-- Proficiency bonus (+2 base, can grow) added to rolls where character is proficient
-- DC (difficulty class) either preset per action type or set by DM agent in its narration context
-- DM narrates success/failure based on roll vs DC
+## Dice Mechanics (Lightweight v1 — later phase)
+- `DiceService::roll(int $sides = 20): int`
+- Proficiency bonus (+2 base) on proficient rolls; DC preset or set by DM; DM narrates success/failure.
 
 ---
 
 ## Build Order
 
-Human-led mob programming throughout. AI tools assist with boilerplate and lookups; humans drive all design decisions.
+Human-led mob programming throughout. **Every feature ships as a vertical slice: failing tests first → an action (controller / agent) → the UI piece that feeds it.** Test-first is the default.
 
 ### Phase 1 — Project Setup ✅
-1. ✅ `laravel new dnd-ai-agents --react --git --database=pgsql --pest --npm --force` — Laravel 13 + React starter kit (Inertia v3, React 19, TypeScript, Tailwind v4, Pest, Radix UI, shadcn components)
-2. ✅ Inertia.js + React + TypeScript pre-configured by starter kit (no manual setup needed)
-3. ⬜ Add the Anthropic PHP SDK via Composer; add `.env` key placeholder _(moved to Phase 3)_
-4. ✅ Build passes (`npm run build`), types clean, ESLint clean. `@/` alias added to `vite.config.ts`; tsconfig already had paths. CLAUDE.md committed.
-   - Note: DB is pgsql, `.env` pre-configured for DBngin on 127.0.0.1:5432, db name `dnd_ai_agents` — user needs to create that database in DBngin before running migrations.
+1. ✅ Laravel 13 + React starter kit (Inertia v3, React 19, TS, Tailwind v4, Pest, shadcn).
+2. ✅ Inertia + React + TS pre-configured.
+3. ✅ `laravel/ai` installed, Anthropic set as default provider in `config/ai.php` (`ANTHROPIC_API_KEY` in `.env`).
+4. ✅ Build/lint/types clean. DB is pgsql (DBngin, db `dnd_ai_agents`).
 
-### Phase 2 — Database Schema
-5. ✅ Write migration for `campaigns` table (id, world_description, timestamps)
-5. ✅ Write migration for `game_sessions` (id, campaign_id, synopsis, timestamps)
-6. ✅ Write migration for `characters` (id, campaign_id, name, race, class, stats JSON, is_agent)
-7. ✅ Write migration for `agent_contexts` (id, game_session_id, character_id, agent_role, messages JSON, token_count, system_prompt) — FK named `game_session_id` to follow Laravel convention against the `game_sessions` table.
-8. ✅ Write migration for `journal_entries` (id, game_session_id, agent_role, summary, turn_number, timestamps)
-9. ✅ Write migration for `turn_messages` (id, game_session_id, speaker, content, token_count, turn_number)
-10. ✅ Create Eloquent models + relationships for all six tables (Campaign, GameSession, Character, AgentContext, JournalEntry, TurnMessage) with fillable + casts (`stats`/`messages` → array, `is_agent` → bool) and matching belongsTo/hasMany relations.
+### Phase 2 — Database Schema & Models ✅
+5. ✅ Migrations for `campaigns`, `game_sessions`, `characters`, `agent_contexts`, `journal_entries`, `turn_messages` (+ `laravel/ai` conversation tables).
+6. ✅ Eloquent models + relationships + casts (`stats`/`messages` → array, `is_agent` → bool) for all six tables.
 
-### Phase 3 — Anthropic Service Layer
-11. Write `AnthropicClient` service — wraps the SDK, sends a message array, returns content + token counts
-12. Write a quick smoke-test (Tinker or a test route) to confirm a live Claude API call works
-13. Add token-count parsing to `AnthropicClient` — store input + output tokens from each response
+### Phase 3 — Player Character Creation ✅
+7. ✅ Welcome page → `CampaignController@store` (name + optional world_description) → redirect to campaign.
+8. ✅ `campaign/show.tsx` character-creation page: name input, race picker, class cards, live stat preview, disabled-until-complete submit.
+9. ✅ `CharacterController@store` + `CreateCharacterRequest`: validates name/race/class, derives stats from `CharacterClass::statBlock()`, creates the player Character (`is_agent = false`).
+10. ✅ Tests: `CharacterControllerTest` (validation, per-class stats, no client stat override) + `campaign/show.spec.tsx` (form target, class options, stat preview, payload, button state).
 
-### Phase 4 — Character Creation
-14. Build `CharacterController` — store a new `Character` + `GameSession` from form data
-15. Build the Home page (Inertia) — "New Game" button + optional setting notes textarea
-16. Build the `CharacterCreation` page — race picker, class picker, stat point-buy form
-17. Wire up form submission → controller → DB → redirect to Game page stub
-18. Add NPC randomisation on session create (random race + class + stats for the 2 agent characters)
+---
 
-### Phase 5 — Agent Services
-19. Write `DmAgentService` — builds the DM system prompt (world lore, rules, tone), calls `AnthropicClient`
-20. Write `NpcAgentService` — builds the NPC system prompt from a `Character` record, calls `AnthropicClient`
-21. Write system prompt templates (plain PHP strings or Blade templates) for DM and NPC roles
-22. Smoke-test both services via Tinker — confirm DM narrates a scene, NPC responds in character
+### Phase 4 — AI Party & Game Resources  ⟵ **CURRENT FOCUS**
+> Goal (per the user): get the hero created **and** stand up the game resources — the AI party plus the `GameSession`/agent contexts — so the agents have something to reason from.
+> Each numbered item below is one vertical slice. **Slices 12 and 13 together deliver "AI party spawned with backstories"; they're split only to keep the mechanical spawn separate from the AI call so each step is inspectable.**
 
-### Phase 6 — Turn Orchestrator
-23. Write `TurnOrchestrator::playerActs(string $action)` — calls DM → NPC1 reaction → NPC2 chain-reaction
-24. Write `TurnOrchestrator::playerPasses(string $npcRole)` — calls designated NPC → DM narrates → other NPC reacts
-25. Write `TurnController` — POST `/turn` endpoint that delegates to `TurnOrchestrator`, returns all responses as JSON
-26. Test the full turn loop end-to-end via a cURL or Postman call
+11. **AI integration proof.** Flesh out one agent class (`DungeonMasterAgent` or a new `NpcAgent`) under `app/Ai/Agents/` enough to send a prompt and return text via `laravel/ai`.
+    - *Tests:* a feature test that **fakes** the `laravel/ai` gateway and asserts we get a response back through our code path.
+    - *Smoke:* one Tinker / temporary-route call against the live Anthropic API to confirm credentials + wiring.
+    - *UI:* none (foundation slice) — keep it minimal.
+
+12. **Spawn the AI party on hero submit.** When `CharacterController@store` saves the player, also create **two** `Character` records with `is_agent = true`, a **random `CharacterClass`** (using its fixed `statBlock()`) and a random race.
+    - *Action:* add a small helper for random class/race (e.g. a `random()` on `CharacterClass` + a race source); consider a `CharacterFactory` for tests.
+    - *Tests:* feature test asserts exactly two agent characters created with valid classes/stats and `is_agent = true`; assert the player is still `is_agent = false`.
+    - *UI:* render the party (`CharacterCard`) on `campaign/show` after creation (or on the post-create screen); frontend test for the party display.
+
+13. **Generate agent backstories at spawn.** Add a `backstory` (text, nullable) column to `characters` via `php artisan make:migration`. During the spawn flow (slice 12), call an NPC/backstory agent to write a short backstory from race/class/stats and persist it.
+    - *Tests:* feature test **fakes** the AI gateway, asserts a backstory is saved for each agent character.
+    - *UI:* show the backstory on each `CharacterCard`.
+
+14. **Begin the first `GameSession` + seed agent contexts.** Character creation *completing* is what starts the session: once the player's hero and both AI party members exist (slices 12–13), the "Begin the Adventure" action ends by creating a `GameSession` for the campaign and seeding `AgentContext` rows for the DM + two NPC agents, each with a `system_prompt` built from its character (race/class/stats/backstory) and the campaign's `world_description`. Per the invariant, the session can't be created before the full party exists — this slice depends on 12.
+    - *Action:* `GameSession` creation + `AgentContext` seeding, as the tail of the character-creation submit (in `CharacterController@store` or a dedicated `GameSessionController@store` it delegates to).
+    - *Tests:* feature test asserts that submitting the hero produces a `GameSession` and three `AgentContext` rows with the right `agent_role` + non-empty `system_prompt`; redirect now targets the game session.
+    - *UI:* redirect lands on a Game page stub showing the seeded party + DM.
+
+---
+
+### Phase 5 — DM & NPC Agent Behaviour
+15. Build out `DungeonMasterAgent` — system prompt (world lore, rules, tone), narrates a scene.
+16. Build `NpcAgent` / `PartyMemberAgent` — system prompt assembled from a `Character` (incl. backstory), responds in character.
+17. System-prompt templates (PHP strings / Blade) for DM and NPC roles.
+18. Smoke-test both via Tinker; feature tests with the AI gateway faked.
+
+### Phase 6 — Turn Orchestrator + Turn Endpoint
+19. `TurnOrchestrator::playerActs(string $action)` — DM → NPC1 reaction → NPC2 chain-reaction.
+20. `TurnOrchestrator::playerPasses(string $npcRole)` — NPC acts → DM narrates → other NPC reacts once.
+21. `TurnController` — `POST /turn`, delegates to the orchestrator, persists `TurnMessage`s, returns responses.
+22. End-to-end test of the full turn loop (AI faked).
 
 ### Phase 7 — Game UI (Left Pane)
-27. Build the `Game` page layout — two-column shell (chat left, inspector right placeholder)
-28. Build `GameChat` component — renders the message feed (DM narration, NPC dialogue, player input)
-29. Build `TurnControls` component — "Act" text input + "Pass to NPC1 / NPC2" buttons
-30. Wire `TurnControls` → POST `/turn` → append responses to `GameChat` feed
+23. `Game` page layout — two-column shell (chat left, inspector placeholder right).
+24. `GameChat` — message feed (DM narration, NPC dialogue, player input).
+25. `TurnControls` — "Act" input + "Pass to NPC1 / NPC2" buttons; wire → `POST /turn` → append to feed.
 
 ### Phase 8 — Context Inspector (Right Pane)
-31. Build `ContextInspector` shell — tabbed panel with DM / NPC1 / NPC2 tabs
-32. Build `TokenMeter` component — progress bar (tokens used / model limit)
-33. Build `MessageHistory` component — collapsible list of the agent's raw message array
-34. Build `SystemPromptViewer` component — read-only display of the agent's system prompt
-35. Wire inspector to live data — `TurnController` response includes updated `AgentContext` snapshots
+26. `ContextInspector` shell — tabbed DM / NPC1 / NPC2.
+27. `TokenMeter` — progress bar (tokens used / model limit).
+28. `MessageHistory` — collapsible raw message array.
+29. `SystemPromptViewer` — read-only system prompt.
+30. Wire inspector to live data — turn responses include updated `AgentContext` snapshots.
 
 ### Phase 9 — Context Manager & Journal Compression
-36. Write `ContextManager::updateTokenCount(AgentContext, int $tokens)` — increments stored count
-37. Write `ContextManager::shouldCompress(AgentContext): bool` — returns true at ~70% of model limit
-38. Write `ContextManager::compress(AgentContext)` — calls Claude to summarise, saves `JournalEntry`, resets messages
-39. Plug `ContextManager` into `TurnOrchestrator` — check + compress after each agent call
-40. Build `JournalSnapshot` component — shows the latest compressed summary in the inspector tab
+31. `ContextManager::updateTokenCount()` / `shouldCompress()` (~70% threshold) / `compress()` (summarise → `JournalEntry` → reset messages).
+32. Plug into `TurnOrchestrator` — check + compress after each agent call.
+33. `JournalSnapshot` component — latest compressed summary in the inspector.
 
 ### Phase 10 — Save & Load
-41. Add `GameSession` status transitions (active / saved / completed) + a `PUT /session/{id}/save` endpoint
-42. Update the Home page to list existing saved sessions with last-played timestamp
-43. Write session-resume logic — on load, inject latest `JournalEntry` as leading context message
-44. Test the save → reload → play cycle; confirm token meter starts from summary, not from zero
+34. `GameSession` status transitions (active / saved / completed) + `PUT /session/{id}/save`.
+35. Home/welcome lists saved sessions with last-played timestamp.
+36. Session-resume — inject latest `JournalEntry` as leading context; verify token meter starts from the summary, not zero.
 
 ### Phase 11 — Dice Mechanics
-45. Write `DiceService::roll(int $sides = 20): int`
-46. Add proficiency bonus lookup to `Character` model (based on class + level, start at +2)
-47. Update `TurnOrchestrator` — detect action keywords that require a check, call `DiceService`, include roll result in DM prompt
-48. Display roll result in `GameChat` feed ("🎲 You rolled a 14 + 2 proficiency = 16")
+37. `DiceService::roll()`; proficiency bonus on `Character` (+2 base).
+38. Orchestrator detects check-requiring actions, rolls, includes result in DM prompt; show roll in `GameChat`.
 
-### Phase 12 — Polish
-49. Build `CharacterCard` component — race, class, HP, stat block thumbnail
-50. Add NPC party display to the Game page header
-51. Add loading spinners / skeleton states while agent calls are in-flight
-52. Error handling — failed API calls surface a friendly message in the chat feed
-53. Final demo run-through: full new game → 10 turns → compression fires → save → reload → continue
+### Phase 12 — Polish & Demo
+39. NPC party display in the Game header; loading/skeleton states during agent calls; friendly error surfacing on failed calls.
+40. Final demo run-through: new game → create hero → AI party spawns with backstories → play turns → compression fires → save → reload → continue.
 
 ---
 
 ## Verification / Demo Script
-
-1. Start new game → create character → generate world from setting notes
-2. Play 3–4 turns (watch token counters climb in inspector)
-3. Trigger context compression manually (or wait for threshold) — students see the journal snapshot appear
-4. Save the session → close → reload — confirm journal is the context, not full history
-5. Pass action to NPC → observe NPC chain reaction → confirm reactions are constrained
-6. Make a roll-required action → see dice result + DM narration adjust to success/failure
+1. New game → create hero → AI party spawns (random classes, backstories) → game session + contexts seeded.
+2. Play 3–4 turns (watch token counters climb in the inspector).
+3. Trigger context compression — journal snapshot appears.
+4. Save → close → reload — confirm the journal is the context, not full history.
+5. Pass an action to an NPC → observe the constrained chain reaction.
+6. Roll-required action → dice result + DM narration adjusts to success/failure.
