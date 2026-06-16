@@ -60,7 +60,7 @@ class CharacterControllerTest extends TestCase
             'int' => 8,
             'wis' => 12,
             'cha' => 10,
-        ], Character::query()->latest('id')->first()->stats);
+        ], Character::query()->first()->stats);
     }
 
     #[Test]
@@ -122,5 +122,21 @@ class CharacterControllerTest extends TestCase
 
         $response->assertSessionHasErrors(['name', 'race', 'class']);
         $this->assertDatabaseCount('characters', 0);
+    }
+
+    #[Test]
+    public function it_will_create_two_additional_ai_agents_for_the_campaign(): void
+    {
+        $campaign = $this->campaign();
+
+        $this->post(route('character.store', ['campaign' => $campaign]), [
+            'name' => 'Cheater',
+            'race' => 'Human',
+            'class' => 'wizard',
+            'stats' => ['str' => 20, 'dex' => 20, 'con' => 20, 'int' => 20, 'wis' => 20, 'cha' => 20],
+        ]);
+
+        $this->assertDatabaseCount('characters', 3);
+        $this->assertTrue(Character::query()->where('is_agent', true)->count() === 2);
     }
 }
