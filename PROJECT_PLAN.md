@@ -3,9 +3,33 @@
 ## Context
 A mob-programming workshop for junior developers at Vehikl. The project is a 1-player D&D game backed by 3 AI agents (1 DM + 2 NPC party members) that teaches how AI context windows work, how separate agent contexts diverge, how orchestration routes messages, and how "travel journal" summarisation compresses context between sessions.
 
-**Where we are (2026-06-16):** The player can create their own hero (name + race + class → stats), and submitting the hero now **spawns the two AI party members** (random class + race, class stat block, `is_agent = true`) via a `CharacterFactory` — backend + feature test done (slice 12). **Remaining in slice 12:** render the spawned party in the UI (`CharacterCard`) + a frontend test. Then slice 13 adds AI-written backstories at spawn, and slice 14 stands up the `GameSession` + agent contexts that the agents will reason from. That's the "game resources" foundation everything else builds on.
+**Where we are (2026-06-23):** The player creates their hero (name + race + class → stats, plus an optional self-written backstory), and submitting the hero **spawns the two AI party members** (random class + race, class stat block, `is_agent = true`) **and generates an AI backstory for each** via the `BackstoryAgent` (`laravel/ai`, Anthropic / Sonnet). Slice 12 backend and slice 13 are done. **Remaining in slice 12:** render the party in the UI (`CharacterCard`) + a frontend test. Next big piece is slice 14 — stand up the `GameSession` + agent contexts and land on a dedicated **session page**. That's the "game resources" foundation everything else builds on.
 
-> **Open issue to resolve before/while finishing slice 12:** race storage is inconsistent — the `CharacterFactory` stores `race` as the `Races` enum object, while `CharacterController` stores the player's race as a raw string (e.g. `'Half-Orc'`, which doesn't even match a `Races` value). Race isn't validated against the `Races` enum anywhere. Pick one representation (enum-backed, validated like `class`) before this hardens.
+> **Race representation — RESOLVED (2026-06-23):** `race` is now enum-backed end to end. `CreateCharacterRequest` validates it with `Rule::enum(Races::class)`, the controller reads it as a `Races` enum, the factory stores `$race->value`, and the frontend race picker is fed from `Races::options()` shared globally via `HandleInertiaRequests` — single source of truth, backend ↔ frontend parity.
+
+---
+
+## Session Log — 2026-06-23
+
+Accomplished this session:
+
+1. **Race standardised on the `Races` enum.** Added `Races::label()` + `Races::options()`; `CreateCharacterRequest` validates `race` with `Rule::enum`; controller reads `race`/`class` as enums (`$request->enum(...)`) and stores backing values; `CharacterFactory` stores `$race->value`. New `rejects_an_unknown_race` test; existing tests moved to enum values.
+2. **Race options shared backend → frontend.** `HandleInertiaRequests::share()` now exposes `races` (from `Races::options()`); typed via `RaceOption` in `resources/js/types/game.ts` + the `sharedPageProps` augmentation. `campaign/show.tsx` reads `races` from `usePage()` and submits enum values; the hardcoded `RACES` constant is gone.
+3. **Optional player backstory.** Wired the (pre-existing) `backstory` column through `Character` `$fillable`, `CreateCharacterRequest` (`nullable|string|max:5000`), the controller, a new `ui/textarea.tsx`, and an optional Backstory field on `campaign/show.tsx`. Fixed a `Textarea` vs `Input` background inconsistency (dropped `dark:bg-input/30` to match this project's `Input`).
+4. **Slice 13 — AI backstories at spawn (see slice 13 below for detail).** New `BackstoryAgent`; controller generates + persists a backstory per AI agent; faked-gateway feature test.
+
+Suite green throughout (PHP in Docker; vitest/lint/types under Node 24).
+
+## Next Session — Intentions
+
+1. **Batch the backstories into one AI call.** Instead of one `prompt()` per agent, send a single call with a JSON structure describing both characters and get all backstories back together, then assign by ID. Track character IDs throughout so assignment is unambiguous. (Worth a design chat first — JSON-in / JSON-out shape, `laravel/ai` structured-output support.)
+2. **Concurrency / ordering.** Decide whether backstories must be generated *before* the response returns at all. Options: keep synchronous, run concurrently, or queue them (the agent has a `queue()` path) and fill backstories asynchronously.
+3. **Land on a session page after creation.** Change the post-creation redirect: instead of returning to `campaign/show` (the creation page), redirect to a dedicated **session page**. Ties into slice 14 (create the `GameSession` on submit and redirect to it).
+4. **Slice 12 UI still owed:** render the spawned party (`CharacterCard`, incl. backstory) + frontend test.
+
+## Future Improvements (parking lot)
+
+- **Player-character backstory generation.** Let the human hero's backstory be AI-generated too — either fully, or expanded from a few bullet points the player provides. Consider a UI toggle on the creation page to choose self-written vs. generated (vs. bullet-assisted).
 
 ---
 
@@ -146,20 +170,22 @@ Human-led mob programming throughout. **Every feature ships as a vertical slice:
 > Goal (per the user): get the hero created **and** stand up the game resources — the AI party plus the `GameSession`/agent contexts — so the agents have something to reason from.
 > Each numbered item below is one vertical slice. **Slices 12 and 13 together deliver "AI party spawned with backstories"; they're split only to keep the mechanical spawn separate from the AI call so each step is inspectable.**
 
-11. **AI integration proof.** Flesh out one agent class (`DungeonMasterAgent` or a new `NpcAgent`) under `app/Ai/Agents/` enough to send a prompt and return text via `laravel/ai`.
-    - *Tests:* a feature test that **fakes** the `laravel/ai` gateway and asserts we get a response back through our code path.
-    - *Smoke:* one Tinker / temporary-route call against the live Anthropic API to confirm credentials + wiring.
-    - *UI:* none (foundation slice) — keep it minimal.
+11. **AI integration proof.** Flesh out one agent class under `app/Ai/Agents/` enough to send a prompt and return text via `laravel/ai`.
+    - ✅ *Faked path:* effectively done via slice 13 — `BackstoryAgent` sends a real prompt through `laravel/ai` and the feature test fakes the gateway and asserts the response flows back through our code path.
+    - ⬜ *Smoke:* still owed — one Tinker / temporary-route call against the **live** Anthropic API to confirm credentials + wiring (needs `ANTHROPIC_API_KEY`). No live call has been made yet.
+    - *UI:* none (foundation slice).
 
 12. **Spawn the AI party on hero submit.** ⟳ *backend done, UI remaining.* When `CharacterController@store` saves the player, also create **two** `Character` records with `is_agent = true`, a **random `CharacterClass`** (using its fixed `statBlock()`) and a random race.
     - ✅ *Action:* `CharacterController::createAccompanyingCharacters()` spawns the pair via `Character::factory(2)->for($campaign)->isAgent()->create()`. The `CharacterFactory` randomises class + race and uses `andreasindal/rpgfaker` (new dependency) for names; new `Races` enum added; `HasFactory` added to `Character`.
     - ✅ *Tests:* `it_will_create_two_additional_ai_agents_for_the_campaign` asserts 3 characters total with exactly 2 `is_agent = true`. *(Diverged from plan: test asserts counts only — does not yet assert valid classes/stats per agent, nor explicitly that the player stays `is_agent = false`.)*
     - ⬜ *UI:* render the party (`CharacterCard`) on `campaign/show` after creation (or on the post-create screen); frontend test for the party display. **← next step.**
-    - ⚠️ *Cleanup carried forward:* race representation inconsistency (factory enum object vs. controller raw string; race unvalidated) — see the open issue note at the top. The test file also has a `// TODO: clean up the tests` (copy-pasted payloads).
+    - ✅ *Cleanup done (2026-06-23):* race representation standardised on the `Races` enum (validated in `CreateCharacterRequest`, controller reads the enum, factory stores `->value`, frontend fed from `Races::options()` shared via `HandleInertiaRequests`). ⚠️ Still open: the test file's `// TODO: clean up the tests` (copy-pasted payloads).
 
-13. **Generate agent backstories at spawn.** Add a `backstory` (text, nullable) column to `characters` via `php artisan make:migration`. During the spawn flow (slice 12), call an NPC/backstory agent to write a short backstory from race/class/stats and persist it.
-    - *Tests:* feature test **fakes** the AI gateway, asserts a backstory is saved for each agent character.
-    - *UI:* show the backstory on each `CharacterCard`.
+13. ✅ **Generate agent backstories at spawn.** *(done 2026-06-23)* `backstory` column (nullable `longText`) in place; the spawn flow calls a backstory agent per AI character and persists the result.
+    - ✅ *Action:* `app/Ai/Agents/BackstoryAgent.php` — a `laravel/ai` agent (`#[Provider('anthropic')]`, `#[Model('claude-sonnet-4-6')]`, DM-style `instructions()`). `CharacterController::createAccompanyingCharacters()` loops the two agents and saves `BackstoryAgent::make()->prompt(...)->text`; the per-character prompt is built from race/class/stats in `backstoryPromptFor()`.
+    - ✅ *Tests:* `it_generates_and_stores_a_backstory_for_each_ai_agent` fakes the gateway (`BackstoryAgent::fake()` in `setUp()` covers the whole class so no test makes a live call); asserts each agent's backstory, that the prompt is character-derived (`assertPrompted`), and that the human hero's backstory is untouched.
+    - ⬜ *UI:* show the backstory on each `CharacterCard` (depends on the slice-12 card, still pending).
+    - *Diverged from plan:* dedicated `BackstoryAgent` rather than reusing the DM agent; model switched Opus → **Sonnet**; backstory length is "a couple paragraphs"; calls are **synchronous + unguarded** for now (see Next Session intentions: batch into one call, revisit concurrency). No live smoke test run yet — slice 11 still owes one.
 
 14. **Begin the first `GameSession` + seed agent contexts.** Character creation *completing* is what starts the session: once the player's hero and both AI party members exist (slices 12–13), the "Begin the Adventure" action ends by creating a `GameSession` for the campaign and seeding `AgentContext` rows for the DM + two NPC agents, each with a `system_prompt` built from its character (race/class/stats/backstory) and the campaign's `world_description`. Per the invariant, the session can't be created before the full party exists — this slice depends on 12.
     - *Action:* `GameSession` creation + `AgentContext` seeding, as the tail of the character-creation submit (in `CharacterController@store` or a dedicated `GameSessionController@store` it delegates to).
