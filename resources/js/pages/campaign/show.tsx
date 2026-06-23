@@ -1,4 +1,4 @@
-import { Form, Head } from '@inertiajs/react';
+import { Form, Head, usePage } from '@inertiajs/react';
 import {
     Axe,
     BookOpen,
@@ -110,17 +110,6 @@ const ABILITIES: { key: keyof AbilityScores; short: string; name: string }[] = [
     { key: 'cha', short: 'CHA', name: 'Charisma' },
 ];
 
-const RACES = [
-    'Human',
-    'Elf',
-    'Dwarf',
-    'Halfling',
-    'Half-Orc',
-    'Tiefling',
-    'Dragonborn',
-    'Gnome',
-];
-
 /** A score of 13+ is a strength worth highlighting; 8 is the classic dump stat. */
 function abilityTone(score: number): string {
     if (score >= 14) {
@@ -139,10 +128,12 @@ function abilityTone(score: number): string {
 }
 
 export default function Show({ campaign, characterClasses }: ShowProps) {
+    const { races } = usePage().props;
     const [characterName, setCharacterName] = useState('');
     const [selectedRace, setSelectedRace] = useState<string | null>(null);
     const [selectedClass, setSelectedClass] = useState<string | null>(null);
 
+    const chosenRace = races.find((r) => r.value === selectedRace) ?? null;
     const chosenClass =
         characterClasses.find((c) => c.value === selectedClass) ?? null;
     const canBeginAdventure =
@@ -220,23 +211,25 @@ export default function Show({ campaign, characterClasses }: ShowProps) {
                                     Lineage
                                 </span>
                                 <div className="flex flex-wrap gap-2">
-                                    {RACES.map((race) => (
+                                    {races.map((race) => (
                                         <button
-                                            key={race}
+                                            key={race.value}
                                             type="button"
-                                            data-testid={`race-option-${race}`}
-                                            aria-pressed={selectedRace === race}
+                                            data-testid={`race-option-${race.value}`}
+                                            aria-pressed={
+                                                selectedRace === race.value
+                                            }
                                             onClick={() =>
-                                                setSelectedRace(race)
+                                                setSelectedRace(race.value)
                                             }
                                             className={cn(
                                                 'rounded-full border px-4 py-1.5 text-sm transition-colors',
-                                                selectedRace === race
+                                                selectedRace === race.value
                                                     ? 'border-amber-400 bg-amber-500/20 text-amber-100'
                                                     : 'border-amber-800/50 text-amber-200/70 hover:border-amber-600 hover:text-amber-100',
                                             )}
                                         >
-                                            {race}
+                                            {race.label}
                                         </button>
                                     ))}
                                 </div>
@@ -399,7 +392,7 @@ export default function Show({ campaign, characterClasses }: ShowProps) {
                                                 <span className="font-serif text-amber-100">
                                                     {characterName}
                                                 </span>{' '}
-                                                the {selectedRace}{' '}
+                                                the {chosenRace?.label}{' '}
                                                 {chosenClass?.label} stands
                                                 ready.
                                             </>

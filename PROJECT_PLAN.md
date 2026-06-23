@@ -3,7 +3,9 @@
 ## Context
 A mob-programming workshop for junior developers at Vehikl. The project is a 1-player D&D game backed by 3 AI agents (1 DM + 2 NPC party members) that teaches how AI context windows work, how separate agent contexts diverge, how orchestration routes messages, and how "travel journal" summarisation compresses context between sessions.
 
-**Where we are (2026-06-16):** The player can create their own hero (name + race + class → stats). The next leg of work spawns the two AI party members with a *randomised* class (and the class's fixed stat block), generates each one an AI-written backstory at spawn, and stands up the `GameSession` + agent contexts that the agents will reason from. That's the "game resources" foundation everything else builds on.
+**Where we are (2026-06-16):** The player can create their own hero (name + race + class → stats), and submitting the hero now **spawns the two AI party members** (random class + race, class stat block, `is_agent = true`) via a `CharacterFactory` — backend + feature test done (slice 12). **Remaining in slice 12:** render the spawned party in the UI (`CharacterCard`) + a frontend test. Then slice 13 adds AI-written backstories at spawn, and slice 14 stands up the `GameSession` + agent contexts that the agents will reason from. That's the "game resources" foundation everything else builds on.
+
+> **Open issue to resolve before/while finishing slice 12:** race storage is inconsistent — the `CharacterFactory` stores `race` as the `Races` enum object, while `CharacterController` stores the player's race as a raw string (e.g. `'Half-Orc'`, which doesn't even match a `Races` value). Race isn't validated against the `Races` enum anywhere. Pick one representation (enum-backed, validated like `class`) before this hardens.
 
 ---
 
@@ -40,8 +42,10 @@ Laravel Backend
 │   └── TurnMessage      (id, game_session_id, speaker, content, token_count, turn_number)
 │
 ├── Enums
-│   └── CharacterClass   (Fighter, Barbarian, Paladin, Rogue, Wizard, Cleric, Bard, Warlock)
-│                         → label(), statBlock(), options()
+│   ├── CharacterClass   (Fighter, Barbarian, Paladin, Rogue, Wizard, Cleric, Bard, Warlock)
+│   │                     → label(), statBlock(), options()
+│   └── Races            (Human, Elf, Dwarf, Halfling, Half-Orc, Tiefling, Dragonborn, Gnome)
+│                         — not yet wired into validation; see open issue
 │
 ├── AI Layer  (laravel/ai — app/Ai/Agents/)
 │   ├── DungeonMasterAgent   (scaffolded; world narration, result adjudication, journal compression)
@@ -147,10 +151,11 @@ Human-led mob programming throughout. **Every feature ships as a vertical slice:
     - *Smoke:* one Tinker / temporary-route call against the live Anthropic API to confirm credentials + wiring.
     - *UI:* none (foundation slice) — keep it minimal.
 
-12. **Spawn the AI party on hero submit.** When `CharacterController@store` saves the player, also create **two** `Character` records with `is_agent = true`, a **random `CharacterClass`** (using its fixed `statBlock()`) and a random race.
-    - *Action:* add a small helper for random class/race (e.g. a `random()` on `CharacterClass` + a race source); consider a `CharacterFactory` for tests.
-    - *Tests:* feature test asserts exactly two agent characters created with valid classes/stats and `is_agent = true`; assert the player is still `is_agent = false`.
-    - *UI:* render the party (`CharacterCard`) on `campaign/show` after creation (or on the post-create screen); frontend test for the party display.
+12. **Spawn the AI party on hero submit.** ⟳ *backend done, UI remaining.* When `CharacterController@store` saves the player, also create **two** `Character` records with `is_agent = true`, a **random `CharacterClass`** (using its fixed `statBlock()`) and a random race.
+    - ✅ *Action:* `CharacterController::createAccompanyingCharacters()` spawns the pair via `Character::factory(2)->for($campaign)->isAgent()->create()`. The `CharacterFactory` randomises class + race and uses `andreasindal/rpgfaker` (new dependency) for names; new `Races` enum added; `HasFactory` added to `Character`.
+    - ✅ *Tests:* `it_will_create_two_additional_ai_agents_for_the_campaign` asserts 3 characters total with exactly 2 `is_agent = true`. *(Diverged from plan: test asserts counts only — does not yet assert valid classes/stats per agent, nor explicitly that the player stays `is_agent = false`.)*
+    - ⬜ *UI:* render the party (`CharacterCard`) on `campaign/show` after creation (or on the post-create screen); frontend test for the party display. **← next step.**
+    - ⚠️ *Cleanup carried forward:* race representation inconsistency (factory enum object vs. controller raw string; race unvalidated) — see the open issue note at the top. The test file also has a `// TODO: clean up the tests` (copy-pasted payloads).
 
 13. **Generate agent backstories at spawn.** Add a `backstory` (text, nullable) column to `characters` via `php artisan make:migration`. During the spawn flow (slice 12), call an NPC/backstory agent to write a short backstory from race/class/stats and persist it.
     - *Tests:* feature test **fakes** the AI gateway, asserts a backstory is saved for each agent character.

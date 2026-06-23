@@ -4,6 +4,10 @@ import Show from '@/pages/campaign/show';
 
 const mocks = vi.hoisted(() => ({
     form: vi.fn(),
+    races: [
+        { value: 'human', label: 'Human' },
+        { value: 'half_orc', label: 'Half-Orc' },
+    ],
 }));
 
 vi.mock('@inertiajs/react', async () => {
@@ -12,6 +16,7 @@ vi.mock('@inertiajs/react', async () => {
     return {
         ...actual,
         Head: () => <></>,
+        usePage: () => ({ props: { races: mocks.races } }),
         Form: ({
             action,
             method,
@@ -68,6 +73,13 @@ describe('Campaign Show — character creation', () => {
         expect(getByText('Wizard')).toBeDefined();
     });
 
+    it('renders an option for every race shared from the backend', () => {
+        const { getByText } = renderShow();
+
+        expect(getByText('Human')).toBeDefined();
+        expect(getByText('Half-Orc')).toBeDefined();
+    });
+
     it('shows the selected class stat block on the right when a class is clicked', () => {
         const { getByTestId } = renderShow();
 
@@ -86,7 +98,7 @@ describe('Campaign Show — character creation', () => {
         fireEvent.change(container.querySelector('input[name="name"]')!, {
             target: { value: 'Grog' },
         });
-        fireEvent.click(getByTestId('race-option-Half-Orc'));
+        fireEvent.click(getByTestId('race-option-half_orc'));
         fireEvent.click(getByTestId('class-option-barbarian'));
 
         expect(
@@ -94,7 +106,7 @@ describe('Campaign Show — character creation', () => {
         ).toBe('Grog');
         expect(
             container.querySelector<HTMLInputElement>('input[name="race"]')!.value,
-        ).toBe('Half-Orc');
+        ).toBe('half_orc');
         expect(
             container.querySelector<HTMLInputElement>('input[name="class"]')!.value,
         ).toBe('barbarian');
@@ -109,7 +121,7 @@ describe('Campaign Show — character creation', () => {
         fireEvent.change(container.querySelector('input[name="name"]')!, {
             target: { value: 'Grog' },
         });
-        fireEvent.click(getByTestId('race-option-Half-Orc'));
+        fireEvent.click(getByTestId('race-option-half_orc'));
         fireEvent.click(getByTestId('class-option-barbarian'));
 
         expect(submit.disabled).toBe(false);
