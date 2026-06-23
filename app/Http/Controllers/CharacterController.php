@@ -20,6 +20,7 @@ class CharacterController extends Controller
             'race' => $race->value,
             'class' => $class->value,
             'stats' => $class->statBlock(),
+            'backstory' => $request->validated('backstory'),
             'is_agent' => false,
         ]);
 

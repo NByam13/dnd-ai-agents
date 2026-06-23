@@ -80,6 +80,14 @@ describe('Campaign Show — character creation', () => {
         expect(getByText('Half-Orc')).toBeDefined();
     });
 
+    it('renders an optional backstory field', () => {
+        const { container } = renderShow();
+
+        expect(
+            container.querySelector('textarea[name="backstory"]'),
+        ).not.toBeNull();
+    });
+
     it('shows the selected class stat block on the right when a class is clicked', () => {
         const { getByTestId } = renderShow();
 
@@ -98,12 +106,20 @@ describe('Campaign Show — character creation', () => {
         fireEvent.change(container.querySelector('input[name="name"]')!, {
             target: { value: 'Grog' },
         });
+        fireEvent.change(container.querySelector('textarea[name="backstory"]')!, {
+            target: { value: 'Raised by wolves.' },
+        });
         fireEvent.click(getByTestId('race-option-half_orc'));
         fireEvent.click(getByTestId('class-option-barbarian'));
 
         expect(
             container.querySelector<HTMLInputElement>('input[name="name"]')!.value,
         ).toBe('Grog');
+        expect(
+            container.querySelector<HTMLTextAreaElement>(
+                'textarea[name="backstory"]',
+            )!.value,
+        ).toBe('Raised by wolves.');
         expect(
             container.querySelector<HTMLInputElement>('input[name="race"]')!.value,
         ).toBe('half_orc');

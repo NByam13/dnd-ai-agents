@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 
 type AbilityScores = {
@@ -203,6 +204,25 @@ export default function Show({ campaign, characterClasses }: ShowProps) {
                                     }
                                     placeholder="e.g. Thorne Ironheart"
                                     className="border-amber-800/60 bg-black/40 text-lg text-amber-50 placeholder:text-amber-200/30 focus-visible:border-amber-500"
+                                />
+                            </section>
+
+                            <section className="space-y-3">
+                                <Label
+                                    htmlFor="character-backstory"
+                                    className="text-sm tracking-widest text-amber-300 uppercase"
+                                >
+                                    Backstory{' '}
+                                    <span className="text-amber-200/40 normal-case">
+                                        (optional)
+                                    </span>
+                                </Label>
+                                <Textarea
+                                    id="character-backstory"
+                                    name="backstory"
+                                    rows={5}
+                                    placeholder="What drove your hero to answer the call? Their origins, scars, and ambitions…"
+                                    className="border-amber-800/60 bg-black/40 text-amber-50 placeholder:text-amber-200/30 focus-visible:border-amber-500"
                                 />
                             </section>
 

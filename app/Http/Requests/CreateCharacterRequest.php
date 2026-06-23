@@ -15,6 +15,7 @@ class CreateCharacterRequest extends FormRequest
             'name' => 'required|string|max:50',
             'race' => ['required', Rule::enum(Races::class)],
             'class' => ['required', Rule::enum(CharacterClass::class)],
+            'backstory' => ['nullable', 'string', 'max:5000'],
         ];
     }
 }

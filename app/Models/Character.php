@@ -18,6 +18,7 @@ class Character extends Model
         'class',
         'stats',
         'is_agent',
+        'backstory',
     ];
 
     protected $casts = [

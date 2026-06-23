@@ -42,6 +42,26 @@ class CharacterControllerTest extends TestCase
     }
 
     #[Test]
+    public function stores_the_player_supplied_backstory(): void
+    {
+        $campaign = $this->campaign();
+
+        $this->post(route('character.store', ['campaign' => $campaign]), [
+            'name' => 'Grog',
+            'race' => 'half_orc',
+            'class' => 'barbarian',
+            'backstory' => 'Raised by wolves in the Stonefang foothills.',
+        ]);
+
+        $this->assertDatabaseHas('characters', [
+            'campaign_id' => $campaign->id,
+            'name' => 'Grog',
+            'backstory' => 'Raised by wolves in the Stonefang foothills.',
+            'is_agent' => false,
+        ]);
+    }
+
+    #[Test]
     public function fills_the_stats_with_the_class_default_stat_block(): void
     {
         $campaign = $this->campaign();
