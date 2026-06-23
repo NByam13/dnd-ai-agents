@@ -21,7 +21,7 @@ class CharacterFactory extends Factory
 
         return [
             'name' => $faker->name,
-            'race' => $race,
+            'race' => $race->value,
             'class' => $class->value,
             'stats' => $class->statBlock(),
             'is_agent' => false,

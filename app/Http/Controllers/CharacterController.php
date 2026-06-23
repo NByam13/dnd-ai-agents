@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\CharacterClass;
+use App\Enums\Races;
 use App\Http\Requests\CreateCharacterRequest;
 use App\Models\Campaign;
 use App\Models\Character;
@@ -11,12 +12,12 @@ class CharacterController extends Controller
 {
     public function store(CreateCharacterRequest $request, Campaign $campaign)
     {
-        $validated = $request->validated();
-        $class = CharacterClass::from($validated['class']);
+        $race = $request->enum('race', Races::class);
+        $class = $request->enum('class', CharacterClass::class);
 
         $campaign->characters()->create([
-            'name' => $validated['name'],
-            'race' => $validated['race'],
+            'name' => $request->validated('name'),
+            'race' => $race->value,
             'class' => $class->value,
             'stats' => $class->statBlock(),
             'is_agent' => false,

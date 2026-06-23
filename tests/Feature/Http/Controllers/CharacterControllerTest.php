@@ -26,14 +26,14 @@ class CharacterControllerTest extends TestCase
 
         $response = $this->post(route('character.store', ['campaign' => $campaign]), [
             'name' => 'Grog',
-            'race' => 'Half-Orc',
+            'race' => 'half_orc',
             'class' => 'barbarian',
         ]);
 
         $this->assertDatabaseHas('characters', [
             'campaign_id' => $campaign->id,
             'name' => 'Grog',
-            'race' => 'Half-Orc',
+            'race' => 'half_orc',
             'class' => 'barbarian',
             'is_agent' => false,
         ]);
@@ -48,7 +48,7 @@ class CharacterControllerTest extends TestCase
 
         $this->post(route('character.store', ['campaign' => $campaign]), [
             'name' => 'Grog',
-            'race' => 'Half-Orc',
+            'race' => 'half_orc',
             'class' => 'barbarian',
         ]);
 
@@ -70,7 +70,7 @@ class CharacterControllerTest extends TestCase
 
         $this->post(route('character.store', ['campaign' => $campaign]), [
             'name' => 'Merlin',
-            'race' => 'Elf',
+            'race' => 'elf',
             'class' => 'wizard',
         ]);
 
@@ -88,7 +88,7 @@ class CharacterControllerTest extends TestCase
 
         $this->post(route('character.store', ['campaign' => $campaign]), [
             'name' => 'Cheater',
-            'race' => 'Human',
+            'race' => 'human',
             'class' => 'wizard',
             'stats' => ['str' => 20, 'dex' => 20, 'con' => 20, 'int' => 20, 'wis' => 20, 'cha' => 20],
         ]);
@@ -105,11 +105,26 @@ class CharacterControllerTest extends TestCase
 
         $response = $this->post(route('character.store', ['campaign' => $campaign]), [
             'name' => 'Nobody',
-            'race' => 'Human',
+            'race' => 'human',
             'class' => 'kobold-wrangler',
         ]);
 
         $response->assertSessionHasErrors('class');
+        $this->assertDatabaseCount('characters', 0);
+    }
+
+    #[Test]
+    public function rejects_an_unknown_race(): void
+    {
+        $campaign = $this->campaign();
+
+        $response = $this->post(route('character.store', ['campaign' => $campaign]), [
+            'name' => 'Nobody',
+            'race' => 'kobold',
+            'class' => 'wizard',
+        ]);
+
+        $response->assertSessionHasErrors('race');
         $this->assertDatabaseCount('characters', 0);
     }
 
@@ -131,7 +146,7 @@ class CharacterControllerTest extends TestCase
 
         $this->post(route('character.store', ['campaign' => $campaign]), [
             'name' => 'Cheater',
-            'race' => 'Human',
+            'race' => 'human',
             'class' => 'wizard',
             'stats' => ['str' => 20, 'dex' => 20, 'con' => 20, 'int' => 20, 'wis' => 20, 'cha' => 20],
         ]);
