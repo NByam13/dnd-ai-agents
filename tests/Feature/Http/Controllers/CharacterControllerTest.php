@@ -2,6 +2,7 @@
 
 namespace Tests\Http\Controllers;
 
+use App\Ai\Agents\BackstoryAgent;
 use App\Models\Campaign;
 use App\Models\Character;
 use PHPUnit\Framework\Attributes\Test;
@@ -9,6 +10,15 @@ use Tests\TestCase;
 
 class CharacterControllerTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Every character.store spawns two AI party members and asks the
+        // backstory agent to write each one. Fake the AI gateway so the suite
+        // never makes a live Anthropic call.
+        BackstoryAgent::fake(fn () => 'A fake backstory.');
+    }
 
     // TODO: Come back here to clean up the tests.
     private function campaign(): Campaign
@@ -173,5 +183,33 @@ class CharacterControllerTest extends TestCase
 
         $this->assertDatabaseCount('characters', 3);
         $this->assertTrue(Character::query()->where('is_agent', true)->count() === 2);
+    }
+
+    #[Test]
+    public function it_generates_and_stores_a_backstory_for_each_ai_agent(): void
+    {
+        BackstoryAgent::fake(fn () => 'Forged in the embereld wastes.');
+
+        $campaign = $this->campaign();
+
+        $this->post(route('character.store', ['campaign' => $campaign]), [
+            'name' => 'Grog',
+            'race' => 'half_orc',
+            'class' => 'barbarian',
+        ]);
+
+        $agents = Character::query()->where('is_agent', true)->get();
+
+        $this->assertCount(2, $agents);
+        $agents->each(
+            fn (Character $agent) => $this->assertSame('Forged in the embereld wastes.', $agent->backstory),
+        );
+
+        // The backstory prompt is built from each agent's character sheet.
+        BackstoryAgent::assertPrompted(fn ($prompt) => str_contains($prompt->prompt, 'Ability scores:'));
+
+        // The human hero keeps whatever backstory they supplied (none here) —
+        // the AI only writes for the party members.
+        $this->assertNull(Character::query()->where('is_agent', false)->first()->backstory);
     }
 }

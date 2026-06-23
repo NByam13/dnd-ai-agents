@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Ai\Agents\BackstoryAgent;
 use App\Enums\CharacterClass;
 use App\Enums\Races;
 use App\Http\Requests\CreateCharacterRequest;
@@ -29,8 +30,25 @@ class CharacterController extends Controller
         return to_route('campaign.show', ['campaign' => $campaign]);
     }
 
-    private function createAccompanyingCharacters(Campaign $campaign)
+    private function createAccompanyingCharacters(Campaign $campaign): void
     {
-        Character::factory(2)->for($campaign)->isAgent()->create();
+        $agents = Character::factory(2)->for($campaign)->isAgent()->create();
+
+        foreach ($agents as $agent) {
+            $agent->update([
+                'backstory' => BackstoryAgent::make()->prompt($this->backstoryPromptFor($agent))->text,
+            ]);
+        }
+    }
+
+    private function backstoryPromptFor(Character $character): string
+    {
+        $race = Races::from($character->race)->label();
+        $class = CharacterClass::from($character->class)->label();
+        $stats = collect($character->stats)
+            ->map(fn (int $score, string $ability): string => strtoupper($ability)." {$score}")
+            ->implode(', ');
+
+        return "Write a backstory for {$character->name}, a {$race} {$class}. Ability scores: {$stats}.";
     }
 }
