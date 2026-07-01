@@ -3,11 +3,25 @@
 ## Context
 A mob-programming workshop for junior developers at Vehikl. The project is a 1-player D&D game backed by 3 AI agents (1 DM + 2 NPC party members) that teaches how AI context windows work, how separate agent contexts diverge, how orchestration routes messages, and how "travel journal" summarisation compresses context between sessions.
 
-**Where we are (2026-06-23):** The player creates their hero (name + race + class → stats, plus an optional self-written backstory), and submitting the hero **spawns the two AI party members** (random class + race, class stat block, `is_agent = true`) **and generates an AI backstory for each** via the `BackstoryAgent` (`laravel/ai`, Anthropic / Sonnet). Slice 12 backend and slice 13 are done. **Remaining in slice 12:** render the party in the UI (`CharacterCard`) + a frontend test. Next big piece is slice 14 — stand up the `GameSession` + agent contexts and land on a dedicated **session page**. That's the "game resources" foundation everything else builds on.
+**Where we are (2026-07-01):** The player creates their hero (name + race + class → stats, plus an optional self-written backstory), the AI party spawns with backstories, and a **character review page** (`character/index`) now renders the full party via a reusable `CharacterCard`. A `GameSession` can be created for a campaign via `POST /campaign/{campaign}/session`. **Next:** build `GameSessionController::show()` + the session page, and seed the DM + 2 NPC `AgentContext` rows — the remaining heart of slice 14. That's the "game resources" foundation everything else builds on.
 
 > **Race representation — RESOLVED (2026-06-23):** `race` is now enum-backed end to end. `CreateCharacterRequest` validates it with `Rule::enum(Races::class)`, the controller reads it as a `Races` enum, the factory stores `$race->value`, and the frontend race picker is fed from `Races::options()` shared globally via `HandleInertiaRequests` — single source of truth, backend ↔ frontend parity.
 
 ---
+
+## Session Log — 2026-07-01
+
+Accomplished this session:
+
+1. **Slice 12 UI delivered.** `character/index` page + reusable `CharacterCard` (race/class/stats/backstory), shared `game.ts` types, `character.index` route; `CharacterController::store` redirects to the review page. Frontend formats raw enum values (`half_orc` → `Half-Orc`). Spec added.
+2. **Backstory display fixed** — `whitespace-pre-line` + capped height with scroll on the card.
+3. **Removed throwaway `campaign/view.tsx`** (superseded by `character/index`).
+4. **Slice 14 started.** `GameSessionController::store` + routes (`game_session.store`, `game_session.show`) + `CampaignFactory`/`HasFactory` + feature test asserting session creation and redirect.
+
+**Open / diverged:**
+- `game_session.show` route references a `GameSessionController::show()` that **doesn't exist yet** — following the store redirect will error. **← next step.**
+- Session creation is a **standalone POST endpoint**, not the tail of hero submission (store still lands on `character.index`), and seeds **no `AgentContext` rows / system prompts / synopsis** — the core of slice 14 remains.
+- Minor: the game-session test's namespace is `Tests\Http\Controllers` but it lives under `tests/Feature/Http/Controllers/`.
 
 ## Session Log — 2026-06-23
 
@@ -22,10 +36,10 @@ Suite green throughout (PHP in Docker; vitest/lint/types under Node 24).
 
 ## Next Session — Intentions
 
-1. **Batch the backstories into one AI call.** Instead of one `prompt()` per agent, send a single call with a JSON structure describing both characters and get all backstories back together, then assign by ID. Track character IDs throughout so assignment is unambiguous. (Worth a design chat first — JSON-in / JSON-out shape, `laravel/ai` structured-output support.)
-2. **Concurrency / ordering.** Decide whether backstories must be generated *before* the response returns at all. Options: keep synchronous, run concurrently, or queue them (the agent has a `queue()` path) and fill backstories asynchronously.
-3. **Land on a session page after creation.** Change the post-creation redirect: instead of returning to `campaign/show` (the creation page), redirect to a dedicated **session page**. Ties into slice 14 (create the `GameSession` on submit and redirect to it).
-4. **Slice 12 UI still owed:** render the spawned party (`CharacterCard`, incl. backstory) + frontend test.
+1. **Build `GameSessionController::show()` + a session page.** An Inertia game-screen stub showing the seeded party + DM. *(Unblocks the dangling `game_session.show` redirect.)*
+2. **Seed `AgentContext` rows** (DM + 2 NPCs) with system prompts on session creation — the real meat of slice 14.
+3. **Decide the session-creation trigger.** A "Begin the Adventure" button on `character/index` that POSTs to `game_session.store`, vs. chaining session creation onto hero submission.
+4. **Carry-overs:** batch backstories into one AI call; concurrency/queue decision; slice 11 live smoke test still owed.
 
 ## Future Improvements (parking lot)
 
@@ -175,22 +189,24 @@ Human-led mob programming throughout. **Every feature ships as a vertical slice:
     - ⬜ *Smoke:* still owed — one Tinker / temporary-route call against the **live** Anthropic API to confirm credentials + wiring (needs `ANTHROPIC_API_KEY`). No live call has been made yet.
     - *UI:* none (foundation slice).
 
-12. **Spawn the AI party on hero submit.** ⟳ *backend done, UI remaining.* When `CharacterController@store` saves the player, also create **two** `Character` records with `is_agent = true`, a **random `CharacterClass`** (using its fixed `statBlock()`) and a random race.
+12. ✅ **Spawn the AI party on hero submit.** *(complete 2026-07-01)* When `CharacterController@store` saves the player, also create **two** `Character` records with `is_agent = true`, a **random `CharacterClass`** (using its fixed `statBlock()`) and a random race.
     - ✅ *Action:* `CharacterController::createAccompanyingCharacters()` spawns the pair via `Character::factory(2)->for($campaign)->isAgent()->create()`. The `CharacterFactory` randomises class + race and uses `andreasindal/rpgfaker` (new dependency) for names; new `Races` enum added; `HasFactory` added to `Character`.
     - ✅ *Tests:* `it_will_create_two_additional_ai_agents_for_the_campaign` asserts 3 characters total with exactly 2 `is_agent = true`. *(Diverged from plan: test asserts counts only — does not yet assert valid classes/stats per agent, nor explicitly that the player stays `is_agent = false`.)*
-    - ⬜ *UI:* render the party (`CharacterCard`) on `campaign/show` after creation (or on the post-create screen); frontend test for the party display. **← next step.**
+    - ✅ *UI (2026-07-01):* `character/index` page renders the party via a reusable `CharacterCard` (name, race/class, stats, backstory); `character.index` GET route; `store` redirects there; frontend spec added. Raw enum values formatted to labels on the frontend.
     - ✅ *Cleanup done (2026-06-23):* race representation standardised on the `Races` enum (validated in `CreateCharacterRequest`, controller reads the enum, factory stores `->value`, frontend fed from `Races::options()` shared via `HandleInertiaRequests`). ⚠️ Still open: the test file's `// TODO: clean up the tests` (copy-pasted payloads).
 
 13. ✅ **Generate agent backstories at spawn.** *(done 2026-06-23)* `backstory` column (nullable `longText`) in place; the spawn flow calls a backstory agent per AI character and persists the result.
     - ✅ *Action:* `app/Ai/Agents/BackstoryAgent.php` — a `laravel/ai` agent (`#[Provider('anthropic')]`, `#[Model('claude-sonnet-4-6')]`, DM-style `instructions()`). `CharacterController::createAccompanyingCharacters()` loops the two agents and saves `BackstoryAgent::make()->prompt(...)->text`; the per-character prompt is built from race/class/stats in `backstoryPromptFor()`.
     - ✅ *Tests:* `it_generates_and_stores_a_backstory_for_each_ai_agent` fakes the gateway (`BackstoryAgent::fake()` in `setUp()` covers the whole class so no test makes a live call); asserts each agent's backstory, that the prompt is character-derived (`assertPrompted`), and that the human hero's backstory is untouched.
-    - ⬜ *UI:* show the backstory on each `CharacterCard` (depends on the slice-12 card, still pending).
+    - ✅ *UI (2026-07-01):* the backstory renders on each `CharacterCard` (`whitespace-pre-line`, height-capped with scroll).
     - *Diverged from plan:* dedicated `BackstoryAgent` rather than reusing the DM agent; model switched Opus → **Sonnet**; backstory length is "a couple paragraphs"; calls are **synchronous + unguarded** for now (see Next Session intentions: batch into one call, revisit concurrency). No live smoke test run yet — slice 11 still owes one.
 
-14. **Begin the first `GameSession` + seed agent contexts.** Character creation *completing* is what starts the session: once the player's hero and both AI party members exist (slices 12–13), the "Begin the Adventure" action ends by creating a `GameSession` for the campaign and seeding `AgentContext` rows for the DM + two NPC agents, each with a `system_prompt` built from its character (race/class/stats/backstory) and the campaign's `world_description`. Per the invariant, the session can't be created before the full party exists — this slice depends on 12.
-    - *Action:* `GameSession` creation + `AgentContext` seeding, as the tail of the character-creation submit (in `CharacterController@store` or a dedicated `GameSessionController@store` it delegates to).
-    - *Tests:* feature test asserts that submitting the hero produces a `GameSession` and three `AgentContext` rows with the right `agent_role` + non-empty `system_prompt`; redirect now targets the game session.
-    - *UI:* redirect lands on a Game page stub showing the seeded party + DM.
+14. ⟳ **Begin the first `GameSession` + seed agent contexts.** *(partial — 2026-07-01)* Character creation *completing* is what starts the session: once the player's hero and both AI party members exist (slices 12–13), the "Begin the Adventure" action ends by creating a `GameSession` for the campaign and seeding `AgentContext` rows for the DM + two NPC agents, each with a `system_prompt` built from its character (race/class/stats/backstory) and the campaign's `world_description`. Per the invariant, the session can't be created before the full party exists — this slice depends on 12.
+    - ✅ *Session creation:* `GameSessionController::store` creates a `GameSession` for a campaign and redirects to `game_session.show`; routes `game_session.store` (POST) + `game_session.show` (GET); `CampaignFactory` + `Campaign` `HasFactory`; feature test asserts creation + redirect.
+    - ⬜ *`show()` + page:* `GameSessionController::show()` **does not exist yet** — the store redirect currently dangles. Build it + a Game page stub showing the seeded party + DM.
+    - ⬜ *`AgentContext` seeding:* no `AgentContext` rows / system prompts / `synopsis` created yet — the core of the slice.
+    - ⬜ *Wiring:* session creation is a **standalone POST endpoint**, not the tail of hero submission (`store` still lands on `character.index`). Decide the trigger — a "Begin the Adventure" button on `character/index` vs. chaining onto hero submit.
+    - *Diverged from plan:* session creation split into a dedicated `GameSessionController@store` endpoint rather than the tail of `CharacterController@store`. Minor: the test's namespace is `Tests\Http\Controllers` but it lives under `tests/Feature/Http/Controllers/`.
 
 ---
 
