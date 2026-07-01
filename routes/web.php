@@ -13,5 +13,5 @@ Route::middleware(['auth', 'verified'])->group(function () {
 Route::post('/campaign/store', [CampaignController::class, 'create'])->name('campaign.store');
 Route::get('/campaign/{campaign}', [CampaignController::class, 'show'])->name('campaign.show');
 Route::post('/campaign/{campaign}/character', [CharacterController::class, 'store'])->name('character.store');
-
+Route::get('/campaign/{campaign}/character', [CharacterController::class, 'index'])->name('character.index');
 require __DIR__.'/settings.php';

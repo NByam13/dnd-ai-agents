@@ -8,6 +8,7 @@ use App\Enums\Races;
 use App\Http\Requests\CreateCharacterRequest;
 use App\Models\Campaign;
 use App\Models\Character;
+use Inertia\Inertia;
 
 class CharacterController extends Controller
 {
@@ -27,7 +28,15 @@ class CharacterController extends Controller
 
         $this->createAccompanyingCharacters($campaign);
 
-        return to_route('campaign.show', ['campaign' => $campaign]);
+        return to_route('character.index', ['campaign' => $campaign]);
+    }
+
+    // character index page that allows us to review the characters we just created
+    public function index(Campaign $campaign)
+    {
+        return Inertia::render('character/index', [
+            'campaign' => $campaign->load('characters'),
+        ]);
     }
 
     private function createAccompanyingCharacters(Campaign $campaign): void

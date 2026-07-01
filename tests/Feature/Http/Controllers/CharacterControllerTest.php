@@ -48,7 +48,7 @@ class CharacterControllerTest extends TestCase
             'is_agent' => false,
         ]);
 
-        $response->assertRedirect(route('campaign.show', ['campaign' => $campaign]));
+        $response->assertRedirect(route('character.index', ['campaign' => $campaign]));
     }
 
     #[Test]

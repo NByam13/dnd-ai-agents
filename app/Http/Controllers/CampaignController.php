@@ -18,6 +18,7 @@ class CampaignController extends Controller
 
     public function show(Campaign $campaign)
     {
+        // character creation page
         return Inertia::render('campaign/show', [
             'campaign' => $campaign,
             'characterClasses' => CharacterClass::options(),
