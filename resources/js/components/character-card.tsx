@@ -126,7 +126,7 @@ export function CharacterCard({ character }: CharacterCardProps) {
                 </dl>
 
                 {character.backstory && (
-                    <p className="text-sm leading-relaxed text-amber-200/70">
+                    <p className="max-h-40 overflow-y-auto text-sm leading-relaxed whitespace-pre-line text-amber-200/70">
                         {character.backstory}
                     </p>
                 )}
