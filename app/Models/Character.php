@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use Illuminate\Contracts\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -34,5 +36,11 @@ class Character extends Model
     public function agentContexts(): HasMany
     {
         return $this->hasMany(AgentContext::class);
+    }
+
+    #[Scope]
+    protected function isAgent(Builder $builder, bool $isAgent = true): void
+    {
+        $builder->where('is_agent', $isAgent);
     }
 }

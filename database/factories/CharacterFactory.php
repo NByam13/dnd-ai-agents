@@ -24,6 +24,7 @@ class CharacterFactory extends Factory
             'race' => $race->value,
             'class' => $class->value,
             'stats' => $class->statBlock(),
+            'backstory' => $this->faker->paragraph,
             'is_agent' => false,
         ];
     }
@@ -31,5 +32,13 @@ class CharacterFactory extends Factory
     public function isAgent(): self
     {
         return $this->state(fn (array $attributes) => ['is_agent' => true]);
+    }
+
+    public function wizard(): self
+    {
+        return $this->state(fn (array $attributes) => [
+            'class' => CharacterClass::Wizard->value,
+            'stats' => CharacterClass::Wizard->statBlock(),
+        ]);
     }
 }
