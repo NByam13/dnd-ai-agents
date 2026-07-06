@@ -1,41 +1,14 @@
 import { fireEvent, render } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Show from '@/pages/campaign/show';
+import { formSpy, setPageProps } from '@/test/inertia-react-mock';
 
-const mocks = vi.hoisted(() => ({
-    form: vi.fn(),
-    races: [
-        { value: 'human', label: 'Human' },
-        { value: 'half_orc', label: 'Half-Orc' },
-    ],
-}));
+vi.mock('@inertiajs/react', () => import('@/test/inertia-react-mock'));
 
-vi.mock('@inertiajs/react', async () => {
-    const actual = await vi.importActual('@inertiajs/react');
-
-    return {
-        ...actual,
-        Head: () => <></>,
-        usePage: () => ({ props: { races: mocks.races } }),
-        Form: ({
-            action,
-            method,
-            children,
-        }: {
-            action: string;
-            method: string;
-            children: React.ReactNode;
-        }) => {
-            mocks.form({ action, method });
-
-            return (
-                <form action={action} method={method}>
-                    {children}
-                </form>
-            );
-        },
-    };
-});
+const races = [
+    { value: 'human', label: 'Human' },
+    { value: 'half_orc', label: 'Half-Orc' },
+];
 
 const campaign = { id: 7, name: 'The Lost Mines' };
 
@@ -55,11 +28,16 @@ const characterClasses = [
 const renderShow = () =>
     render(<Show campaign={campaign} characterClasses={characterClasses} />);
 
+beforeEach(() => {
+    formSpy.mockClear();
+    setPageProps({ races });
+});
+
 describe('Campaign Show — character creation', () => {
     it('renders a form that posts to the campaign character endpoint', () => {
         renderShow();
 
-        expect(mocks.form).toHaveBeenCalledWith({
+        expect(formSpy).toHaveBeenCalledWith({
             action: '/campaign/7/character',
             method: 'post',
         });
