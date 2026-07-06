@@ -100,25 +100,48 @@ Assert on the *prompt contract* (what we send the model), not on generated text.
 
 ### Mocking Inertia
 
-Pages depend on `@inertiajs/react`. Mock it with `vi.hoisted` + `vi.mock`,
-spreading the real module and overriding only what you need:
+Pages depend on `@inertiajs/react`. There is one shared manual mock — don't
+re-declare an inline factory per spec. Two files back it:
+
+- `__mocks__/@inertiajs/react.tsx` — the module replacement, auto-loaded by
+  Vitest. It stubs only the exports the pages use (`Head`, `usePage`, `Form`) and
+  must live at the repo root (adjacent to `node_modules`) for Vitest to find it.
+- `resources/js/test/inertia-mock-state.ts` — the test-only spy and page-prop
+  state (`formSpy`, `setPageProps`), kept under `@/` so specs import it cleanly.
+
+Activate it with a bare `vi.mock` (no factory), then drive/assert via the state
+helpers:
 
 ```tsx
-const mocks = vi.hoisted(() => ({ form: vi.fn(), races: [/* ... */] }));
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import Show from '@/pages/campaign/show';
+import { formSpy, setPageProps } from '@/test/inertia-mock-state';
 
-vi.mock('@inertiajs/react', async () => {
-    const actual = await vi.importActual('@inertiajs/react');
-    return {
-        ...actual,
-        Head: () => <></>,
-        usePage: () => ({ props: { races: mocks.races } }),
-        Form: ({ action, method, children }) => {
-            mocks.form({ action, method });
-            return <form action={action} method={method}>{children}</form>;
-        },
-    };
+vi.mock('@inertiajs/react');
+
+const races = [{ value: 'human', label: 'Human' }];
+
+beforeEach(() => {
+    formSpy.mockClear();       // reset call history between tests
+    setPageProps({ races });   // what usePage().props returns this render
+});
+
+it('posts to the campaign character endpoint', () => {
+    render(<Show campaign={{ id: 7, name: 'The Lost Mines' }} characterClasses={[]} />);
+
+    expect(formSpy).toHaveBeenCalledWith({
+        action: '/campaign/7/character',
+        method: 'post',
+    });
 });
 ```
+
+A spec that renders no `<Form>` and reads no page props (e.g. `character/index`)
+just needs the `vi.mock('@inertiajs/react')` line — no helper import.
+
+The mock deliberately omits the `...actual` passthrough: it exports only
+`Head`/`usePage`/`Form`. If a page under test imports another Inertia export
+(`Link`, `router`, …), add a stub for it to `__mocks__/@inertiajs/react.tsx`.
 
 ### Conventions
 

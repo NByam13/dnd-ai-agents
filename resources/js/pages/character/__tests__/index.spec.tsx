@@ -1,11 +1,9 @@
 import { render } from '@testing-library/react';
 import type { ComponentProps } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import Index from '@/pages/character/index';
 
 type CampaignProp = ComponentProps<typeof Index>['campaign'];
-
-vi.mock('@inertiajs/react');
 
 const campaign: CampaignProp = {
     id: 7,

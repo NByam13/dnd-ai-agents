@@ -1,9 +1,7 @@
 import { render } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import Welcome from '@/pages/welcome';
 import { formSpy } from '@/test/inertia-mock-state';
-
-vi.mock('@inertiajs/react');
 
 beforeEach(() => {
     formSpy.mockClear();

@@ -1,9 +1,7 @@
 import { fireEvent, render } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import Show from '@/pages/campaign/show';
 import { formSpy, setPageProps } from '@/test/inertia-mock-state';
-
-vi.mock('@inertiajs/react');
 
 const races = [
     { value: 'human', label: 'Human' },
