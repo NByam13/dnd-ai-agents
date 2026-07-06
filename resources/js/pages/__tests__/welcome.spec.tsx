@@ -1,32 +1,21 @@
 import { render } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Welcome from '@/pages/welcome';
+import { formSpy } from '@/test/inertia-mock-state';
 
-const mocks = vi.hoisted(() => ({
-    form: vi.fn()
-}))
+vi.mock('@inertiajs/react');
 
-vi.mock('@inertiajs/react', async () => {
-    const actual = await vi.importActual('@inertiajs/react');
-
-    return {
-        ...actual,
-        Head: () => <></>,
-        Form: ({ action, method, children }: { action: string; method: string; children: React.ReactNode }) => {
-            mocks.form({ action, method });
-
-            return <form action={action} method={method}>{children}</form>;
-        }
-    };
+beforeEach(() => {
+    formSpy.mockClear();
 });
 
 describe('Welcome Page', () => {
     it('renders a campaign creation form that posts to /campaign/store', () => {
         render(<Welcome />);
 
-        expect(mocks.form).toHaveBeenCalledWith({
+        expect(formSpy).toHaveBeenCalledWith({
             action: '/campaign/store',
-            method: 'post'
+            method: 'post',
         });
     });
 

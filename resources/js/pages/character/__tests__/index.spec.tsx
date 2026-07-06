@@ -5,14 +5,7 @@ import Index from '@/pages/character/index';
 
 type CampaignProp = ComponentProps<typeof Index>['campaign'];
 
-vi.mock('@inertiajs/react', async () => {
-    const actual = await vi.importActual('@inertiajs/react');
-
-    return {
-        ...actual,
-        Head: () => <></>,
-    };
-});
+vi.mock('@inertiajs/react');
 
 const campaign: CampaignProp = {
     id: 7,
