@@ -11,6 +11,7 @@
 - Use Composer for PHP packages — never edit `composer.json` directly.
 
 ## Testing
+- See [TESTING.md](TESTING.md) for full test standards (backend + frontend conventions, faking AI agents, how to run each suite).
 - Work test-first: write feature tests before implementing the feature. Let failing tests drive the implementation.
 - Prefer feature tests (hitting HTTP endpoints) over unit tests by default. Add unit tests only where logic is complex enough to warrant isolation.
 - Run the test suite after every non-trivial change: `php artisan test`.
