@@ -3,11 +3,29 @@
 ## Context
 A mob-programming workshop for junior developers at Vehikl. The project is a 1-player D&D game backed by 3 AI agents (1 DM + 2 NPC party members) that teaches how AI context windows work, how separate agent contexts diverge, how orchestration routes messages, and how "travel journal" summarisation compresses context between sessions.
 
-**Where we are (2026-07-01):** The player creates their hero (name + race + class → stats, plus an optional self-written backstory), the AI party spawns with backstories, and a **character review page** (`character/index`) now renders the full party via a reusable `CharacterCard`. A `GameSession` can be created for a campaign via `POST /campaign/{campaign}/session`. **Next:** build `GameSessionController::show()` + the session page, and seed the DM + 2 NPC `AgentContext` rows — the remaining heart of slice 14. That's the "game resources" foundation everything else builds on.
+**Where we are (2026-07-21):** The player creates their hero, the AI party spawns with backstories, and `character/index` renders the full party via `CharacterCard` **and now carries the "Begin the Adventure" button** that POSTs to `game_session.store`. Creating a session **seeds the DM's `AgentContext`** (persistent system prompt + an opening-context message built from the world seed and the whole party's character sheets) and lands on `game_session.show`, which is now a **chat-room placeholder** (message feed + disabled turn input + a reserved "AI Context Window" rail). **Next:** seed the **2 NPC** `AgentContext` rows, then generate the DM's **opening narration** (the first live AI call), then wire the turn loop. That's the remaining heart of slice 14.
 
 > **Race representation — RESOLVED (2026-06-23):** `race` is now enum-backed end to end. `CreateCharacterRequest` validates it with `Rule::enum(Races::class)`, the controller reads it as a `Races` enum, the factory stores `$race->value`, and the frontend race picker is fed from `Races::options()` shared globally via `HandleInertiaRequests` — single source of truth, backend ↔ frontend parity.
 
 ---
+
+## Session Log — 2026-07-21
+
+Accomplished this session:
+
+1. **`GameSessionController::show()` + page built.** Fixed the broken binding (was `Campaign $campaign` on a `/session/{session}` route → now `GameSession $session`), renders `game-session/show` with the campaign + party. Backend feature test asserts the Inertia component + props (uses `withoutVite()`).
+2. **`withoutVite()` moved into the base `TestCase::setUp()`** — the first page-rendering feature test needed it; now global so future page tests don't depend on a Vite build.
+3. **DM context seeding (mechanical, no live call).** `game_session.store` now creates the session **and** seeds a DM `AgentContext`: `agent_role='dm'`, `character_id=null`, `system_prompt` = `DungeonMasterAgent::instructions()` (fleshed out into a real persistent DM role), `messages` = one opening-context message assembled from the world seed + every character's sheet/stats/backstory. New migration makes `agent_contexts.character_id` **nullable** (the DM has no `Character`).
+4. **"Begin the Adventure" wired on `character/index`.** An Inertia `<Form>` POSTs to `game_session.store`; removed the button from `show`. Session-creation trigger decided: a button on the party-review page (not chained onto hero submit).
+5. **`game_session.show` reshaped into a chat-room placeholder.** Session header + party roster, a message feed with a placeholder DM turn, a disabled turn input + Send, and a reserved "AI Context Window" rail (further slice).
+
+**Open / diverged:**
+- **NPC contexts not seeded yet** — only the DM. The 2 NPC `AgentContext` rows are the next step (needs a `PartyMemberAgent` built from a `Character`).
+- **No live AI call yet** — DM seeding is purely mechanical (deliberate split, per the 12/13 rhythm). The DM's opening narration is its own next step; the chat feed is a placeholder until then.
+- `openingContextFor()` is **DM-framed** ("open the adventure…") — reusing it verbatim for NPCs would be wrong; the shared *facts* need splitting from the role-specific framing (see Follow-ups).
+- `agent_role` is a **raw string** (`'dm'`) — candidate for an `AgentRole` enum once NPCs land (see Follow-ups).
+- Context/sheet assembly is **inline in the controller** and duplicates `CharacterController::backstoryPromptFor()` (see Follow-ups).
+- Minor: the game-session test's namespace is still `Tests\Http\Controllers` (lives under `tests/Feature/Http/Controllers/`).
 
 ## Session Log — 2026-07-01
 
@@ -36,10 +54,18 @@ Suite green throughout (PHP in Docker; vitest/lint/types under Node 24).
 
 ## Next Session — Intentions
 
-1. **Build `GameSessionController::show()` + a session page.** An Inertia game-screen stub showing the seeded party + DM. *(Unblocks the dangling `game_session.show` redirect.)*
-2. **Seed `AgentContext` rows** (DM + 2 NPCs) with system prompts on session creation — the real meat of slice 14.
-3. **Decide the session-creation trigger.** A "Begin the Adventure" button on `character/index` that POSTs to `game_session.store`, vs. chaining session creation onto hero submission.
-4. **Carry-overs:** batch backstories into one AI call; concurrency/queue decision; slice 11 live smoke test still owed.
+1. **Seed the 2 NPC `AgentContext` rows.** One per `is_agent` character, `character_id` set, `agent_role='npc'`, `system_prompt` = a persona built from that `Character` (name/race/class/stats/backstory) via a new `PartyMemberAgent`. Fold in the shared-facts/role-framing split and (likely) an `AgentRole` enum while here.
+2. **Generate the DM's opening narration.** The first live AI call: feed the seeded DM context to `DungeonMasterAgent`, persist the narration (as a `TurnMessage` and/or into the DM's `messages`), render it in the chat feed. Also settles slice 11's still-owed live smoke test.
+3. **Make the chat room live.** Enable the turn input → a `TurnController`/orchestrator path → append responses to the feed.
+4. **Carry-overs:** batch backstories into one AI call; concurrency/queue decision (see Follow-ups).
+
+## Follow-ups
+
+- **`AgentRole` enum.** `agent_role` is currently a raw string (`'dm'`). Introduce an enum (`dm`, `npc`, …) as NPC seeding lands, so roles are type-safe end to end like `Races`/`CharacterClass`.
+- **Split shared context facts from role-specific framing.** `GameSessionController::openingContextFor()` mixes the *facts* (world seed + party sheets) with a *DM-only* call to action ("open the adventure…"). Factor the facts into a shared block so DM and NPC contexts can share it, with the persona/role living entirely in each agent's `system_prompt`.
+- **Extract character-sheet / persona building.** `characterSheetFor()` (in `GameSessionController`) and `CharacterController::backstoryPromptFor()` both assemble race/class/stats prose from a `Character`. Pull this into one place (a `Character` method or a small service) before a third copy appears with `PartyMemberAgent`.
+- **Dedup `toSummary`/`formatEnumLabel`.** Identical enum-label formatting lives in both `character/index.tsx` and `game-session/show.tsx`; extract to a shared util.
+- **Kick off AI player generation as queued jobs (non-blocking on create).** Currently `CharacterController::createAccompanyingCharacters()` generates each AI party member's backstory via a **synchronous** `BackstoryAgent` call inside the request that creates the hero — so hero submission blocks on 2 sequential Anthropic round-trips. Dispatch this work to queued jobs instead so character creation returns immediately; the UI reveals each AI player's backstory as its job completes. Ties into the open "batch backstories into one AI call" + concurrency decision.
 
 ## Future Improvements (parking lot)
 
@@ -201,12 +227,12 @@ Human-led mob programming throughout. **Every feature ships as a vertical slice:
     - ✅ *UI (2026-07-01):* the backstory renders on each `CharacterCard` (`whitespace-pre-line`, height-capped with scroll).
     - *Diverged from plan:* dedicated `BackstoryAgent` rather than reusing the DM agent; model switched Opus → **Sonnet**; backstory length is "a couple paragraphs"; calls are **synchronous + unguarded** for now (see Next Session intentions: batch into one call, revisit concurrency). No live smoke test run yet — slice 11 still owes one.
 
-14. ⟳ **Begin the first `GameSession` + seed agent contexts.** *(partial — 2026-07-01)* Character creation *completing* is what starts the session: once the player's hero and both AI party members exist (slices 12–13), the "Begin the Adventure" action ends by creating a `GameSession` for the campaign and seeding `AgentContext` rows for the DM + two NPC agents, each with a `system_prompt` built from its character (race/class/stats/backstory) and the campaign's `world_description`. Per the invariant, the session can't be created before the full party exists — this slice depends on 12.
+14. ⟳ **Begin the first `GameSession` + seed agent contexts.** *(mostly done — 2026-07-21; NPC seeding + opening narration remain)* Character creation *completing* is what starts the session: once the player's hero and both AI party members exist (slices 12–13), the "Begin the Adventure" action creates a `GameSession` for the campaign and seeds `AgentContext` rows, each with a `system_prompt` built from its character (race/class/stats/backstory) and the campaign's `world_description`. Per the invariant, the session can't be created before the full party exists — this slice depends on 12.
     - ✅ *Session creation:* `GameSessionController::store` creates a `GameSession` for a campaign and redirects to `game_session.show`; routes `game_session.store` (POST) + `game_session.show` (GET); `CampaignFactory` + `Campaign` `HasFactory`; feature test asserts creation + redirect.
-    - ⬜ *`show()` + page:* `GameSessionController::show()` **does not exist yet** — the store redirect currently dangles. Build it + a Game page stub showing the seeded party + DM.
-    - ⬜ *`AgentContext` seeding:* no `AgentContext` rows / system prompts / `synopsis` created yet — the core of the slice.
-    - ⬜ *Wiring:* session creation is a **standalone POST endpoint**, not the tail of hero submission (`store` still lands on `character.index`). Decide the trigger — a "Begin the Adventure" button on `character/index` vs. chaining onto hero submit.
-    - *Diverged from plan:* session creation split into a dedicated `GameSessionController@store` endpoint rather than the tail of `CharacterController@store`. Minor: the test's namespace is `Tests\Http\Controllers` but it lives under `tests/Feature/Http/Controllers/`.
+    - ✅ *`show()` + page (2026-07-21):* fixed the binding (`GameSession $session`); `game-session/show` is a **chat-room placeholder** — session header + party roster, a message feed with a placeholder DM turn, a disabled turn input + Send, and a reserved "AI Context Window" rail. Backend + frontend specs added.
+    - ⟳ *`AgentContext` seeding:* **DM done (2026-07-21)** — `agent_role='dm'`, `character_id=null` (new nullable migration), `system_prompt` from `DungeonMasterAgent::instructions()`, `messages` = opening context (world + party sheets); mechanical, no live call. ⬜ **NPC rows still to seed** (needs `PartyMemberAgent`). ⬜ `synopsis` not set. ⬜ DM opening narration (first live call) not generated.
+    - ✅ *Wiring (2026-07-21):* trigger decided — "Begin the Adventure" `<Form>` on `character/index` POSTs to `game_session.store` (not chained onto hero submit).
+    - *Diverged from plan:* session creation split into a dedicated `GameSessionController@store` endpoint rather than the tail of `CharacterController@store`; DM system prompt lives on `DungeonMasterAgent` (fleshed out from the stub) and is read back for the seed. Minor: the test's namespace is `Tests\Http\Controllers` but it lives under `tests/Feature/Http/Controllers/`.
 
 ---
 

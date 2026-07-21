@@ -102,4 +102,15 @@ describe('Character Index', () => {
             'A scholar of forbidden runes.',
         );
     });
+
+    it('offers a form to begin the adventure that creates the game session', () => {
+        const { getByRole } = renderIndex();
+
+        const button = getByRole('button', { name: /begin the adventure/i });
+        expect(button).toBeDefined();
+
+        const form = button.closest('form');
+        expect(form?.getAttribute('action')).toBe('/campaign/7/session');
+        expect(form?.getAttribute('method')?.toLowerCase()).toBe('post');
+    });
 });

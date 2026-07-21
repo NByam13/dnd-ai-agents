@@ -100,24 +100,27 @@ Assert on the *prompt contract* (what we send the model), not on generated text.
 
 ### Mocking Inertia
 
-Pages depend on `@inertiajs/react`. There is one shared manual mock — don't
-re-declare an inline factory per spec. Two files back it:
+Pages depend on `@inertiajs/react`. There is one shared manual mock, applied to
+every spec automatically — you don't write `vi.mock` in test files. Three files
+back it:
 
-- `__mocks__/@inertiajs/react.tsx` — the module replacement, auto-loaded by
-  Vitest. It stubs only the exports the pages use (`Head`, `usePage`, `Form`) and
-  must live at the repo root (adjacent to `node_modules`) for Vitest to find it.
+- `__mocks__/@inertiajs/react.tsx` — the module replacement. It stubs only the
+  exports the pages use (`Head`, `usePage`, `Form`) and must live at the repo
+  root (adjacent to `node_modules`) for Vitest to resolve it.
+- `resources/js/test/setup.ts` — a global setup file (registered via
+  `test.setupFiles` in `vite.config.ts`) that calls `vi.mock('@inertiajs/react')`
+  once so the mock applies to all specs. Vitest has no Jest-style automock, so
+  this single call is what activates the `__mocks__` file everywhere.
 - `resources/js/test/inertia-mock-state.ts` — the test-only spy and page-prop
   state (`formSpy`, `setPageProps`), kept under `@/` so specs import it cleanly.
 
-Activate it with a bare `vi.mock` (no factory), then drive/assert via the state
+So a spec doesn't mock anything itself — it just drives/asserts via the state
 helpers:
 
 ```tsx
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import Show from '@/pages/campaign/show';
 import { formSpy, setPageProps } from '@/test/inertia-mock-state';
-
-vi.mock('@inertiajs/react');
 
 const races = [{ value: 'human', label: 'Human' }];
 
@@ -137,11 +140,16 @@ it('posts to the campaign character endpoint', () => {
 ```
 
 A spec that renders no `<Form>` and reads no page props (e.g. `character/index`)
-just needs the `vi.mock('@inertiajs/react')` line — no helper import.
+imports nothing from the mock at all — the setup file already stubs Inertia.
 
-The mock deliberately omits the `...actual` passthrough: it exports only
-`Head`/`usePage`/`Form`. If a page under test imports another Inertia export
-(`Link`, `router`, …), add a stub for it to `__mocks__/@inertiajs/react.tsx`.
+Notes:
+
+- The mock deliberately omits the `...actual` passthrough: it exports only
+  `Head`/`usePage`/`Form`. If a page under test imports another Inertia export
+  (`Link`, `router`, …), add a stub for it to `__mocks__/@inertiajs/react.tsx`.
+- The mock is global, so every spec renders with Inertia stubbed. A test that
+  needs the *real* module opts out in that file with
+  `vi.doUnmock('@inertiajs/react')` (or `vi.importActual`).
 
 ### Conventions
 

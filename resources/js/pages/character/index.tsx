@@ -1,7 +1,8 @@
-import { Head } from '@inertiajs/react';
-import { ScrollText, Sparkles, Users } from 'lucide-react';
+import { Form, Head } from '@inertiajs/react';
+import { ScrollText, Sparkles, Swords, Users } from 'lucide-react';
 
 import { CharacterCard } from '@/components/character-card';
+import { Button } from '@/components/ui/button';
 import type { AbilityScores, CharacterSummary } from '@/types/game';
 
 /** A character as it arrives from Eloquent — race/class are raw enum values. */
@@ -121,6 +122,27 @@ export default function Index({ campaign }: IndexProps) {
                                 No heroes have joined this campaign yet.
                             </div>
                         )}
+                    </section>
+
+                    {/* Begin the adventure — creates the game session and seeds the DM */}
+                    <section className="mt-12 flex flex-col items-center gap-4 text-center">
+                        <p className="text-amber-200/60">
+                            Your party is assembled. When you begin, the Dungeon
+                            Master takes up the tale.
+                        </p>
+                        <Form
+                            action={`/campaign/${campaign.id}/session`}
+                            method="post"
+                        >
+                            <Button
+                                type="submit"
+                                size="lg"
+                                className="gap-2 bg-amber-500 text-black hover:bg-amber-400"
+                            >
+                                <Swords className="size-5" />
+                                Begin the Adventure
+                            </Button>
+                        </Form>
                     </section>
                 </div>
             </div>

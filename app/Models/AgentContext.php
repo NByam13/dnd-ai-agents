@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AgentRole;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -19,6 +20,7 @@ class AgentContext extends Model
     protected $casts = [
         'messages' => 'array',
         'token_count' => 'integer',
+        'agent_role' => AgentRole::class,
     ];
 
     public function gameSession(): BelongsTo
